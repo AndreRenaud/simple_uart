@@ -2,8 +2,11 @@ CFLAGS=-g -Wall -pipe
 
 default: simple_uart_test simple_uart_term
 
+test: simple_uart_test
+	./simple_uart_test
+
 %.o: %.c
-	cppcheck -q $<
+	cppcheck -q --enable=all $<
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 simple_uart_test: simple_uart_test.o simple_uart.o

@@ -66,7 +66,6 @@ struct simple_uart
 
 int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 {
-    int r;
 #ifdef WIN32
     COMMTIMEOUTS commTimeout;
 
@@ -84,6 +83,7 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 #else
     fd_set readfds, exceptfds;
     struct timeval t;
+    int r;
 
     // Have a timeout of 50ms to avoid just thrashing the CPU
     FD_ZERO(&readfds);
@@ -107,11 +107,13 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 
 int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
 {
-    int r = -EIO;
 #ifdef WIN32
+    int r;
     /* TODO: Support char_delay_us */
     WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
+    return r;
 #else
+    int r;
     if (sc->char_delay_us > 0) {
         const uint8_t *buf8 = buffer;
         for (int i = 0; i < len; i++) {
@@ -505,7 +507,7 @@ int simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, i
 {
     int pos = 0;
     int last = mseconds();
-    int now = mseconds();
+    int now;
 
     if (!buffer || max_len == 0)
         return -EINVAL;
