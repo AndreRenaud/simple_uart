@@ -1,7 +1,8 @@
 # Simple UART
 
+<img src="/simple_uart_logo.png" alt="Simple UART Logo" width="480"/>
+
 Build: [![GitHub Actions](https://github.com/AndreRenaud/simple_uart/workflows/C/C++%20CI/badge.svg)](https://github.com/AndreRenaud/simple_uart/actions)
-<img src="https://raw.githubusercontent.com/AndreRenaud/simple_uart/readme/simple_uart_logo.png" alt="Simple UART Logo" width="630"/>
 
 ## API
 ```c
