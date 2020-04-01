@@ -11,6 +11,12 @@ Simple UART is a cross-platform serial port UART library. It supports Linux, Win
 
 The code is licensed under the 0-Clause BSD - see [LICENSE](/LICENSE) for details.
 
+## How to add it to a project
+
+The library consists of a single .c and .h pair. To add it to a project, simply copy the *simple_uart.c* and *simple_uart.h* file into the project and add to the build system. There are no external dependencies beyond the standard system library, and the code should automatically determine which platform it is building for and comple correctly. The license should be suitable for both open-source and commercial projects.
+
+Please submit a bug report if this does not work.
+
 ## API
 ```c
 int simple_uart_list(char ***namesp, char ***descriptionp);
