@@ -16,6 +16,36 @@ The code is licensed under the 0-Clause BSD - see [LICENSE](/LICENSE) for detail
 int simple_uart_list(char ***namesp, char ***descriptionp);
 ```
 
+List available UART ports and descriptions.
+It is the callers responsibility to free each element in namesp & descriptionsp after calling, as well as the top-level pointers themselves.
+
+#### Arguments:
+Arg | Description
+--- | -----------
+*namesp* | Pointer to a list of UART devices to be returned
+*descriptionp* | Pointer to a list of UART description strings to be filled in (optional)
+
+#### Return:
+On success the number of elements in the *namesp* and *descriptionsp* lists will be returned. *< 0* on failure.
+
+### Example:
+```c
+char **names;
+char **description;
+int nuarts = simple_uart_list(&names, &descriptions);
+for (int i = 0; i < nuarts; i++) {
+	printf("Port %d: %s: %s\n", i, names[i], descriptions[i]);
+}
+
+for (int i = 0; i < nuarts; i++) {
+	free(names[i]);
+	free(descriptions[i]);
+}
+free(names);
+free(descriptions);
+```c
+
+
 ```c
 struct simple_uart *simple_uart_open(const char *name, int speed, const char *mode_string);
 ```
