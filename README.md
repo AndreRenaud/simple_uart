@@ -20,7 +20,7 @@ List available UART ports and descriptions.
 It is the callers responsibility to free each element in namesp & descriptionsp after calling, as well as the top-level pointers themselves.
 
 #### Arguments:
-Arg | Description
+Argument | Details
 --- | -----------
 *namesp* | Pointer to a list of UART devices to be returned
 *descriptionp* | Pointer to a list of UART description strings to be filled in (optional)
@@ -43,7 +43,7 @@ for (int i = 0; i < nuarts; i++) {
 }
 free(names);
 free(descriptions);
-```c
+```
 
 
 ```c
