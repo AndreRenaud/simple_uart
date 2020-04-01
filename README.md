@@ -4,6 +4,12 @@
 
 Build: [![GitHub Actions](https://github.com/AndreRenaud/simple_uart/workflows/C/C++%20CI/badge.svg)](https://github.com/AndreRenaud/simple_uart/actions)
 
+Simple UART is a cross-platform serial port UART library. It supports Linux, Windows and macOS. It is designed to be simple to add to a project - it is a single .c and .h file with no dependencies beyond the standard system library.
+
+## License
+
+The code is licensed under the 0-Clause BSD - see [LICENSE](/LICENSE) for details.
+
 ## API
 ```c
 int simple_uart_list(char ***namesp, char ***descriptionp);
