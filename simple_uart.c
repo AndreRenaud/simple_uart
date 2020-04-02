@@ -102,6 +102,10 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
     if (r < 0)
         r = -errno;
 #endif
+    if (r > 0 && sc->logfile) {
+        fwrite(buffer, r, 1, sc->logfile);
+        fflush(sc->logfile);
+    }
     return r;
 }
 
@@ -111,7 +115,6 @@ int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
     int r;
     /* TODO: Support char_delay_us */
     WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
-    return r;
 #else
     int r;
     if (sc->char_delay_us > 0) {
@@ -130,6 +133,11 @@ int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
     }
 #endif
 
+    if (r > 0 && sc->logfile) {
+        fwrite(buffer, r, 1, sc->logfile);
+        fflush(sc->logfile);
+    }
+
     return r;
 }
 
@@ -138,6 +146,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 #ifdef WIN32
     DCB dcbConfig;
     if (GetCommState (sc->port, &dcbConfig)) {
+        // TODO: Do mode_string properly
         dcbConfig.BaudRate = speed;
         dcbConfig.ByteSize = 8;
         dcbConfig.Parity = NOPARITY;
@@ -433,7 +442,7 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
 #endif
 
 #ifdef __APPLE__
-        if (glob ("/dev/cu.*", 0, NULL, &g) >= 0) {
+        if (glob ("/dev/tty.*", 0, NULL, &g) >= 0) {
         char buffer[100];
         char **new_names;
         new_names = realloc(names, (count + g.gl_pathc) * sizeof (char *));
@@ -520,14 +529,12 @@ int simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, i
         if (ret < 0)
             return ret;
         if (ret > 0) {
-            if (uart->logfile)
-                fwrite(&ch, 1, 1, uart->logfile);
-            if (ch == '\n') {
-                buffer[pos] = '\0';
+            if (ch == '\n' || ch == '\r') {
                 break;
             } else {
                 last = mseconds();
                 buffer[pos] = ch;
+                buffer[pos + 1] = '\0';
                 pos++;
             }
         }
@@ -535,12 +542,10 @@ int simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, i
     } while (pos < max_len - 1 && now - last < timeout);
 
     /* If we got a carriage return + line feed, just collapse them */
-    if (pos > 0 && buffer[pos - 1] == '\r')
+    while (pos > 0 && (buffer[pos - 1] == '\r' || buffer[pos - 1] == '\n')) {
         buffer[pos - 1] = '\0';
-    buffer[pos] = '\0';
-
-    if (uart->logfile)
-        fflush(uart->logfile);
+        pos--;
+    }
 
     if (now - last >= timeout)
         return -ETIMEDOUT;

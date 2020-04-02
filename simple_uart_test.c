@@ -76,8 +76,41 @@ void test_loopback(void)
 	shutdown_loopback(pid);
 }
 
+void test_read_line(void)
+{
+	struct simple_uart *u1, *u2;
+	char buffer[10];
+	pid_t pid;
+
+	pid = setup_loopback();
+
+	u1 = simple_uart_open(UART_LOOPBACK_1, 115200, "8N1");
+	TEST_ASSERT(u1 != NULL);
+	u2 = simple_uart_open(UART_LOOPBACK_2, 115200, "8N1");
+	TEST_ASSERT(u2 != NULL);
+
+	simple_uart_write(u1, "a", 1);
+	simple_uart_write(u1, "b", 1);
+	simple_uart_write(u1, "\r", 1);
+	TEST_ASSERT(simple_uart_read_line(u2, buffer, sizeof(buffer), 100) == 2);
+	TEST_ASSERT(strcmp(buffer, "ab") == 0);
+
+	simple_uart_write(u2, "cd\n", 3);
+	TEST_ASSERT(simple_uart_read_line(u1, buffer, sizeof(buffer), 100) == 2);
+	TEST_ASSERT(strcmp(buffer, "cd") == 0);
+
+	simple_uart_write(u2, "ef", 2);
+	TEST_ASSERT(simple_uart_read_line(u1, buffer, sizeof(buffer), 100) < 0);
+	TEST_ASSERT(strcmp(buffer, "ef") == 0);
+
+	simple_uart_close(u1);
+	simple_uart_close(u2);
+	shutdown_loopback(pid);
+}
+
 TEST_LIST = {
    {"open", test_open},
    {"loopback", test_loopback},
+   {"read_line", test_read_line},
    { NULL, NULL }
 };
