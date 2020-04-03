@@ -559,7 +559,10 @@ int simple_uart_send_break(struct simple_uart *uart)
     tcsendbreak(uart->fd, 1);
     return 0;
 #else
-    return -ENOTSUP;
+    SetCommBreak(uart->port);
+    msleep(1);
+    ClearCommBreak(uart->port);
+    return 0;
 #endif
 }
 
@@ -596,7 +599,22 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
         return -EINVAL;
     }
 #else
-    return -ENOTSUP;
+    DWORD status;
+    if (!GetCommModemStatus(uart->port))
+        return -GetLastError();
+
+    switch (pin) {
+    case SIMPLE_UART_CTS:
+        return (status & MS_CTS_ON) ? 1 : 0;
+    case SIMPLE_UART_DSR:
+        return (status & MS_DSR_ON) ? 1 : 0;
+    case SIMPLE_UART_DCD:
+        return (status & MS_RSLD_ON) ? 1 : 0;
+    case SIMPLE_UART_RI:
+        return (status & MS_RING_ON) ? 1 : 0;
+    default:
+        return -EINVAL;
+    }
 #endif
 }
 
@@ -630,6 +648,19 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
 
     return 0;
 #else
-    return -ENOTSUP;
+    bool res;
+    switch(pin) {
+    case SIMPLE_UART_RTS:
+        res = EscapeCommFunction(uart->port, high ? SETRTS : CLRRTS);
+        break;
+    case SIMPLE_UART_DTR:
+        res = EscapeCommFunction(uart->port, high ? SETDTR : CLRDTR);
+        break;
+    default:
+        return -EINVAL;
+    }
+    if (!res)
+        return -GetLastError();
+    return 0;
 #endif
 }
