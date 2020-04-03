@@ -560,7 +560,9 @@ int simple_uart_send_break(struct simple_uart *uart)
     return 0;
 #else
     SetCommBreak(uart->port);
-    msleep(1);
+    // Linux doesn't support durations, it is always 4/10 of a second.
+    // Replicate that here.
+    msleep(400);
     ClearCommBreak(uart->port);
     return 0;
 #endif
