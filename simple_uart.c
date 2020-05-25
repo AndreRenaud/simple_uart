@@ -161,7 +161,9 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 #else
     struct termios options;
     int sp;
+#ifdef __linux__
     int non_standard = 0;
+#endif
 
     switch (speed)
     {
@@ -233,7 +235,9 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 
     default:
         sp = B38400;
+#ifdef __linux__
         non_standard = 1;
+#endif
     }
 
     if (tcgetattr(sc->fd, &options) < 0)
@@ -604,7 +608,7 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
     }
 #else
     DWORD status;
-    if (!GetCommModemStatus(uart->port))
+    if (!GetCommModemStatus(uart->port, &status))
         return -GetLastError();
 
     switch (pin) {
