@@ -182,6 +182,14 @@
 #define TEST_CASE(name)         test_case_("%s", name)
 
 
+/* Maximal output per TEST_CASE call. Longer messages are cut.
+ * You may define another limit prior including "acutest.h"
+ */
+#ifndef TEST_CASE_MAXSIZE
+    #define TEST_CASE_MAXSIZE    64
+#endif
+
+
 /* printf-like macro for outputting an extra information about a failure.
  *
  * Intended use is to output some computed output versus the expected value,
@@ -220,10 +228,10 @@
  * generating any printf-like message, this is for dumping raw block of a
  * memory in a hexadecimal form:
  *
- * TEST_CHECK(size_produced == size_expected &&
- *            memcmp(addr_produced, addr_expected, size_produced) == 0);
- * TEST_DUMP("Expected:", addr_expected, size_expected);
- * TEST_DUMP("Produced:", addr_produced, size_produced);
+ *   TEST_CHECK(size_produced == size_expected &&
+ *              memcmp(addr_produced, addr_expected, size_produced) == 0);
+ *   TEST_DUMP("Expected:", addr_expected, size_expected);
+ *   TEST_DUMP("Produced:", addr_produced, size_produced);
  */
 #define TEST_DUMP(title, addr, size)    test_dump_(title, addr, size)
 
@@ -233,6 +241,27 @@
 #ifndef TEST_DUMP_MAXSIZE
     #define TEST_DUMP_MAXSIZE   1024
 #endif
+
+
+/* Common test initialiation/clean-up
+ *
+ * In some test suites, it may be needed to perform some sort of the same
+ * initialization and/or clean-up in all the tests.
+ *
+ * Such test suites may use macros TEST_INIT and/or TEST_FINI prior including
+ * this header. The expansion of the macro is then used as a body of helper
+ * function called just before executing every single (TEST_INIT) or just after
+ * it ends (TEST_FINI).
+ *
+ * Examples of various ways how to use the macro TEST_INIT:
+ *
+ *   #define TEST_INIT      my_init_func();
+ *   #define TEST_INIT      my_init_func()      // Works even without the semicolon
+ *   #define TEST_INIT      setlocale(LC_ALL, NULL);
+ *   #define TEST_INIT      { setlocale(LC_ALL, NULL); my_init_func(); }
+ *
+ * TEST_FINI is to be used in the same way.
+ */
 
 
 /**********************
@@ -296,9 +325,16 @@
 /* Note our global private identifiers end with '_' to mitigate risk of clash
  * with the unit tests implementation. */
 
-
 #ifdef __cplusplus
     extern "C" {
+#endif
+
+#ifdef _MSC_VER
+    /* In the multi-platform code like ours, we cannot use the non-standard
+     * "safe" functions from Microsoft C lib like e.g. sprintf_s() instead of
+     * standard sprintf(). Hence, lets disable the warning C4996. */
+    #pragma warning(push)
+    #pragma warning(disable: 4996)
 #endif
 
 
@@ -348,7 +384,7 @@ static int test_stat_run_units_ = 0;
 
 static const struct test_* test_current_unit_ = NULL;
 static int test_current_index_ = 0;
-static char test_case_name_[64] = "";
+static char test_case_name_[TEST_CASE_MAXSIZE] = "";
 static int test_current_already_logged_ = 0;
 static int test_case_current_already_logged_ = 0;
 static int test_verbose_level_ = 2;
@@ -557,7 +593,7 @@ test_finish_test_line_(int result)
     if(test_tap_) {
         const char* str = (result == 0) ? "ok" : "not ok";
 
-        printf("%s %u - %s\n", str, test_current_index_ + 1, test_current_unit_->name);
+        printf("%s %d - %s\n", str, test_current_index_ + 1, test_current_unit_->name);
 
         if(result == 0  &&  test_timer_) {
             printf("# Duration: ");
@@ -828,15 +864,13 @@ test_name_contains_word_(const char* name, const char* pattern)
     static const char word_delim[] = " \t-_/.,:;";
     const char* substr;
     size_t pattern_len;
-    int starts_on_word_boundary;
-    int ends_on_word_boundary;
 
     pattern_len = strlen(pattern);
 
     substr = strstr(name, pattern);
     while(substr != NULL) {
-        starts_on_word_boundary = (substr == name || strchr(word_delim, substr[-1]) != NULL);
-        ends_on_word_boundary = (substr[pattern_len] == '\0' || strchr(word_delim, substr[pattern_len]) != NULL);
+        int starts_on_word_boundary = (substr == name || strchr(word_delim, substr[-1]) != NULL);
+        int ends_on_word_boundary = (substr[pattern_len] == '\0' || strchr(word_delim, substr[pattern_len]) != NULL);
 
         if(starts_on_word_boundary && ends_on_word_boundary)
             return 1;
@@ -892,12 +926,12 @@ test_lookup_(const char* pattern)
 static void TEST_ATTRIBUTE_(format (printf, 1, 2))
 test_error_(const char* fmt, ...)
 {
-    va_list args;
-
     if(test_verbose_level_ == 0)
         return;
 
     if(test_verbose_level_ >= 2) {
+        va_list args;
+
         test_line_indent_(1);
         if(test_verbose_level_ >= 3)
             test_print_in_color_(TEST_COLOR_RED_INTENSIVE_, "ERROR: ");
@@ -912,10 +946,38 @@ test_error_(const char* fmt, ...)
     }
 }
 
+/* This is called just before each test */
+static void
+test_init_(const char *test_name)
+{
+#ifdef TEST_INIT
+    TEST_INIT
+    ; /* Allow for a single unterminated function call */
+#endif
+
+    /* Suppress any warnings about unused variable. */
+    (void) test_name;
+}
+
+/* This is called after each test */
+static void
+test_fini_(const char *test_name)
+{
+#ifdef TEST_FINI
+    TEST_FINI
+    ; /* Allow for a single unterminated function call */
+#endif
+
+    /* Suppress any warnings about unused variable. */
+    (void) test_name;
+}
+
 /* Call directly the given test unit function. */
 static int
 test_do_run_(const struct test_* test, int index)
 {
+    int status = -1;
+
     test_was_aborted_ = 0;
     test_current_unit_ = test;
     test_current_index_ = index;
@@ -923,13 +985,13 @@ test_do_run_(const struct test_* test, int index)
     test_current_already_logged_ = 0;
     test_cond_failed_ = 0;
 
-    test_begin_test_line_(test);
-
 #ifdef __cplusplus
     try {
 #endif
+        test_init_(test->name);
+        test_begin_test_line_(test);
 
-        /* This is good to do for case the test unit e.g. crashes. */
+        /* This is good to do in case the test unit crashes. */
         fflush(stdout);
         fflush(stderr);
 
@@ -975,9 +1037,7 @@ aborted:
             test_finish_test_line_(0);
         }
 
-        test_case_(NULL);
-        test_current_unit_ = NULL;
-        return (test_current_failures_ == 0) ? 0 : -1;
+        status = (test_current_failures_ == 0) ? 0 : -1;
 
 #ifdef __cplusplus
     } catch(std::exception& e) {
@@ -991,8 +1051,6 @@ aborted:
             test_print_in_color_(TEST_COLOR_RED_INTENSIVE_, "FAILED: ");
             printf("C++ exception.\n\n");
         }
-
-        return -1;
     } catch(...) {
         test_check_(0, NULL, 0, "Threw an exception");
 
@@ -1001,10 +1059,14 @@ aborted:
             test_print_in_color_(TEST_COLOR_RED_INTENSIVE_, "FAILED: ");
             printf("C++ exception.\n\n");
         }
-
-        return -1;
     }
 #endif
+
+    test_fini_(test->name);
+    test_case_(NULL);
+    test_current_unit_ = NULL;
+
+    return status;
 }
 
 /* Trigger the unit test. If possible (and not suppressed) it starts a child
@@ -1697,9 +1759,12 @@ main(int argc, char** argv)
 
 #endif  /* #ifndef TEST_NO_MAIN */
 
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif
+
 #ifdef __cplusplus
     }  /* extern "C" */
 #endif
-
 
 #endif  /* #ifndef ACUTEST_H */
