@@ -112,7 +112,7 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
 {
 #ifdef WIN32
-    int r;
+    int r = 0;
     /* TODO: Support char_delay_us */
     WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
 #else
@@ -120,9 +120,11 @@ int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
     if (sc->char_delay_us > 0) {
         const uint8_t *buf8 = buffer;
         for (int i = 0; i < len; i++) {
-            r = write(sc->fd, &buf8[i], 1);
-            if (r < 0)
-                return r;
+            int e = write(sc->fd, &buf8[i], 1);
+            if (e < 0)
+                return e;
+            if (e == 0)
+                return i;
             usleep(sc->char_delay_us);
         }
         r = len;
@@ -623,29 +625,22 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
 int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
 {
 #if defined(__linux__) || defined(__APPLE__)
-    int status;
+    int bits;
 
-    if (ioctl(uart->fd, TIOCMGET, &status) < 0)
-        return -errno;
+    if (!uart || uart->fd < 0)
+        return -EINVAL;
 
     switch (pin) {
     case SIMPLE_UART_RTS:
-        if (high) 
-            status |= TIOCM_RTS;
-        else
-            status &= TIOCM_RTS;
+        bits = TIOCM_RTS;
         break;
     case SIMPLE_UART_DTR:
-        if (high)
-            status |= TIOCM_DTR;
-        else
-            status &= ~TIOCM_DTR;
+        bits = TIOCM_DTR;
         break;
     default:
         return -EINVAL;
     }
-
-    if (ioctl(uart->fd, TIOCMSET, &status) < 0)
+    if (ioctl(uart->fd, high ? TIOCMBIS : TIOCMBIC, &bits) < 0)
         return -errno;
 
     return 0;
