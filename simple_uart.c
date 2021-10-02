@@ -52,6 +52,10 @@
 #define SER_RS485_RX_DURING_TX  (1 << 4)
 #endif
 
+// macOS doesn't have TIOCINQ but TIOCOUTQ
+#ifndef TIOCINQ
+#define TIOCINQ TIOCOUTQ
+#endif
 
 struct simple_uart
 {
@@ -391,6 +395,27 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
         return NULL;
     }
     return retval;
+}
+
+bool simple_uart_has_data(struct simple_uart *sc)
+{
+    if (!sc)
+        return 0;
+
+#ifdef WIN32
+    COMSTAT cs;
+    if (!ClearCommError(uart->port, NULL, &cs)) {
+        return 0;
+    }
+    return cs.cbInQue;
+#else
+    int count;
+    if (-1 == ioctl (sc->fd, TIOCINQ, &count)) {
+        return 0;
+    } else {
+        return count;
+    }
+#endif
 }
 
 int simple_uart_set_character_delay(struct simple_uart *sc, int delay_us)
