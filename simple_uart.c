@@ -32,6 +32,10 @@
 #include <linux/serial.h>
 #endif
 
+#ifdef __APPLE__
+#include <IOKit/serial/ioss.h>
+#endif
+
 #include "simple_uart.h"
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -52,7 +56,7 @@
 #define SER_RS485_RX_DURING_TX  (1 << 4)
 #endif
 
-// macOS doesn't have TIOCINQ but TIOCOUTQ
+// macOS doesn't have TIOCINQ but TIOCOUTQ instead
 #ifndef TIOCINQ
 #define TIOCINQ TIOCOUTQ
 #endif
@@ -167,6 +171,8 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     int sp;
 #ifdef __linux__
     int non_standard = 0;
+#else // __APPLE__ type casting
+    speed_t mac_speed = speed;
 #endif
 
     switch (speed)
@@ -180,6 +186,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     case 4800:
         sp = B4800;
         break;
+#ifdef __linux__
     case 9600:
         sp = B9600;
         break;
@@ -198,7 +205,6 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     case 230400:
         sp = B230400;
         break;
-#ifdef __linux__
     case 460800:
         sp = B460800;
         break;
@@ -235,12 +241,18 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     case 4000000:
         sp = B4000000;
         break;
-#endif
 
     default:
         sp = B38400;
-#ifdef __linux__
         non_standard = 1;
+#else // __APPLE__ only
+    // The IOSSIOSPEED ioctl can be used to set arbitrary baud rates
+    // other than those specified by POSIX. The driver for the underlying serial hardware
+    // ultimately determines which baud rates can be used. This ioctl sets both the input
+    // and output speed.
+    default:
+        // TODO: Skip other settings for now
+        return ioctl(sc->fd, IOSSIOSPEED, &mac_speed) == -1 ? errno : 0;
 #endif
     }
 
