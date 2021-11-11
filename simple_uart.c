@@ -56,11 +56,6 @@
 #define SER_RS485_RX_DURING_TX  (1 << 4)
 #endif
 
-// macOS doesn't have TIOCINQ but TIOCOUTQ instead
-#ifndef TIOCINQ
-#define TIOCINQ TIOCOUTQ
-#endif
-
 struct simple_uart
 {
 #ifdef WIN32
@@ -421,12 +416,9 @@ bool simple_uart_has_data(struct simple_uart *sc)
     }
     return cs.cbInQue;
 #else
-    int count;
-    if (-1 == ioctl (sc->fd, TIOCINQ, &count)) {
-        return 0;
-    } else {
-        return count;
-    }
+    int bytes_available;
+    int retval = ioctl(sc->fd, FIONREAD, &bytes_available);
+    return bytes_available;
 #endif
 }
 
