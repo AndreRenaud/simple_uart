@@ -39,9 +39,9 @@ int simple_uart_write(struct simple_uart *uart, const void *buffer, int len);
 int simple_uart_set_character_delay(struct simple_uart *uart, int delay_us);
 
 /**
- * Returns true if there is data available on the uart
+ * Returns how many data bytes available on the uart
  */
-bool simple_uart_has_data(struct simple_uart *uart);
+int simple_uart_has_data(struct simple_uart *uart);
 
 /**
  * Set the logfile to store all read/write data to

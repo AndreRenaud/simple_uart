@@ -404,7 +404,7 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     return retval;
 }
 
-bool simple_uart_has_data(struct simple_uart *sc)
+int simple_uart_has_data(struct simple_uart *sc)
 {
     if (!sc)
         return 0;
