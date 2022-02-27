@@ -7,7 +7,7 @@
 static pid_t setup_loopback(void)
 {
 	pid_t pid;
-	char *const args[] = {"socat", "PTY,link=" UART_LOOPBACK_1, "PTY,link=" UART_LOOPBACK_2, NULL};
+	char *const args[] = {"socat", "PTY,link=" UART_LOOPBACK_1 ",raw,echo=0,iexten=0", "PTY,link=" UART_LOOPBACK_2 ",raw,echo=0,iexten=0", NULL};
 	pid = fork();
 
 	TEST_ASSERT(pid >= 0);
@@ -70,6 +70,36 @@ void test_loopback(void)
 	shutdown_loopback(pid);
 }
 
+void test_loopback_random(void)
+{
+	struct simple_uart *u1, *u2;
+	pid_t pid;
+
+	pid = setup_loopback();
+
+	u1 = simple_uart_open(UART_LOOPBACK_1, 115200, "8N1");
+	TEST_ASSERT(u1 != NULL);
+	u2 = simple_uart_open(UART_LOOPBACK_2, 115200, "8N1");
+	TEST_ASSERT(u2 != NULL);
+
+	for (int i = 0; i < 100; i++) {
+		uint8_t tx[100];
+		uint8_t rx[sizeof(tx)];
+		int tx_len = rand() % sizeof(tx);
+		for (int j = 0; j < tx_len; j++)
+			tx[j] = rand() % 256;
+		memset(rx, 0, sizeof(rx));
+		TEST_ASSERT(simple_uart_write(u1, tx, tx_len) == tx_len);
+		usleep(1000);
+		TEST_ASSERT(simple_uart_read(u2, rx, sizeof(rx)) == tx_len);
+		TEST_ASSERT(memcmp(rx, tx, tx_len) == 0);
+	}
+
+	simple_uart_close(u1);
+	simple_uart_close(u2);
+	shutdown_loopback(pid);
+}
+
 void test_read_line(void)
 {
 	struct simple_uart *u1, *u2;
@@ -105,6 +135,7 @@ void test_read_line(void)
 TEST_LIST = {
 	{"open", test_open},
 	{"loopback", test_loopback},
+	{"loopback_random", test_loopback_random},
 	{"read_line", test_read_line},
 	{NULL, NULL},
 };
