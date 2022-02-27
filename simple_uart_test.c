@@ -4,27 +4,21 @@
 #define UART_LOOPBACK_1 "/tmp/ttyS0"
 #define UART_LOOPBACK_2 "/tmp/ttyS1"
 
-static pid_t spawn_process(char * const args[])
+static pid_t setup_loopback(void)
 {
 	pid_t pid;
+	char *const args[] = {"socat", "PTY,link=" UART_LOOPBACK_1, "PTY,link=" UART_LOOPBACK_2, NULL};
 	pid = fork();
 
 	TEST_ASSERT(pid >= 0);
 
-	if (pid == 0) {
+	if (pid == 0)
+	{
 		execvp(args[0], args);
 	}
 	/* Give it time to start */
 	usleep(100000);
 	return pid;
-}
-
-
-static pid_t setup_loopback(void)
-{
-	char * const args[] = {"socat", "PTY,link=/tmp/ttyS0", "PTY,link=/tmp/ttyS1", NULL};
-	return spawn_process(args);
-	/* Something to do with socat */
 }
 
 static void shutdown_loopback(pid_t pid)
@@ -109,8 +103,8 @@ void test_read_line(void)
 }
 
 TEST_LIST = {
-   {"open", test_open},
-   {"loopback", test_loopback},
-   {"read_line", test_read_line},
-   { NULL, NULL }
+	{"open", test_open},
+	{"loopback", test_loopback},
+	{"read_line", test_read_line},
+	{NULL, NULL},
 };

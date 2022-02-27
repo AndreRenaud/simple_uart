@@ -163,7 +163,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     return 0;
 #else
     struct termios options;
-    int sp;
+    int sp = 0;
 #ifdef __linux__
     int non_standard = 0;
 #else // __APPLE__ type casting
@@ -181,7 +181,6 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     case 4800:
         sp = B4800;
         break;
-#ifdef __linux__
     case 9600:
         sp = B9600;
         break;
@@ -200,6 +199,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     case 230400:
         sp = B230400;
         break;
+#ifdef __linux__
     case 460800:
         sp = B460800;
         break;
@@ -245,17 +245,21 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     // other than those specified by POSIX. The driver for the underlying serial hardware
     // ultimately determines which baud rates can be used. This ioctl sets both the input
     // and output speed.
-    default:
-        // TODO: Skip other settings for now
-        return ioctl(sc->fd, IOSSIOSPEED, &mac_speed) == -1 ? errno : 0;
+    default: {
+        int r = ioctl(sc->fd, IOSSIOSPEED, &mac_speed);
+        if (r < 0 && errno != ENOTTY)
+            return -errno;
+    }
 #endif
     }
 
     if (tcgetattr(sc->fd, &options) < 0)
         return -errno;
 
-    cfsetospeed(&options, sp);
-    cfsetispeed(&options, sp);
+    if (sp != 0) {
+        cfsetospeed(&options, sp);
+        cfsetispeed(&options, sp);
+    }
 
     options.c_cflag &= ~(HUPCL);
 
@@ -397,7 +401,8 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     }
     retval->fd = fd;
 #endif
-    if (simple_uart_set_config(retval, speed, mode_string) < 0) {
+    int r = simple_uart_set_config(retval, speed, mode_string);
+    if (r < 0 && r != -ENOTTY) {
         simple_uart_close(retval);
         return NULL;
     }
@@ -417,7 +422,8 @@ int simple_uart_has_data(struct simple_uart *sc)
     return cs.cbInQue;
 #else
     int bytes_available;
-    int retval = ioctl(sc->fd, FIONREAD, &bytes_available);
+    if (ioctl(sc->fd, FIONREAD, &bytes_available) < 0)
+        return -errno;
     return bytes_available;
 #endif
 }
