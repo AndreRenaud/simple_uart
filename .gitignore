@@ -1,0 +1,3 @@
+*.o
+simple_uart_term
+simple_uart_test
