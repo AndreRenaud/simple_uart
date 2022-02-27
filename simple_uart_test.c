@@ -83,8 +83,8 @@ void test_loopback_random(void)
 	TEST_ASSERT(u2 != NULL);
 
 	for (int i = 0; i < 100; i++) {
-		uint8_t tx[100];
-		uint8_t rx[sizeof(tx)];
+		unsigned char tx[100];
+		unsigned char rx[sizeof(tx)];
 		int tx_len = rand() % sizeof(tx);
 		for (int j = 0; j < tx_len; j++)
 			tx[j] = rand() % 256;
