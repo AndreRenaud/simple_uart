@@ -416,7 +416,7 @@ int simple_uart_has_data(struct simple_uart *sc)
 
 #ifdef WIN32
     COMSTAT cs;
-    if (!ClearCommError(uart->port, NULL, &cs)) {
+    if (!ClearCommError(sc->port, NULL, &cs)) {
         return 0;
     }
     return cs.cbInQue;

@@ -6,7 +6,7 @@ test: simple_uart_test
 	./simple_uart_test
 
 %.o: %.c
-	cppcheck -q --enable=all $<
+	cppcheck -q --enable=all -UTEST_FINI -UTEST_INIT -UCLOCK_MONOTONIC -URUNNING_ON_VALGRIND $<
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 simple_uart_test: simple_uart_test.o simple_uart.o
