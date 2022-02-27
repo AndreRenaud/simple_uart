@@ -442,7 +442,6 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
     char **names = NULL;
     char **description = NULL;
     int count = 0;
-    int i;
 
 #ifdef __linux__
     if (glob("/sys/class/tty/ttyS[0-9]*", 0, NULL, &g) >= 0) {
@@ -455,7 +454,7 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
             return -ENOMEM;
         }
         names = new_names;
-        for (i = count; i < count + g.gl_pathc; i++) {
+        for (int i = count; i < count + g.gl_pathc; i++) {
             sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
             names[i] = strdup(buffer);
         }
@@ -473,7 +472,7 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
             return -ENOMEM;
         }
         names = new_names;
-        for (i = count; i < count + g.gl_pathc; i++) {
+        for (int i = count; i < count + g.gl_pathc; i++) {
             sprintf (buffer, "/dev/%s", basename (g.gl_pathv[i - count]));
             names[i] = strdup (buffer);
         }
@@ -493,7 +492,7 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
             return -ENOMEM;
         }
         names = new_names;
-        for (i = count; i < count + g.gl_pathc; i++) {
+        for (int i = count; i < count + g.gl_pathc; i++) {
             sprintf (buffer, "/dev/%s", basename (g.gl_pathv[i - count]));
             names[i] = strdup (buffer);
         }
