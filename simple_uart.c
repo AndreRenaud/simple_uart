@@ -69,6 +69,7 @@ struct simple_uart
 
 int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 {
+    int r;
 #ifdef WIN32
     COMMTIMEOUTS commTimeout;
 
@@ -86,7 +87,6 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 #else
     fd_set readfds, exceptfds;
     struct timeval t;
-    int r;
 
     // Have a timeout of 50ms to avoid just thrashing the CPU
     FD_ZERO(&readfds);
@@ -602,7 +602,7 @@ int simple_uart_send_break(struct simple_uart *uart)
     SetCommBreak(uart->port);
     // Linux doesn't support durations, it is always 4/10 of a second.
     // Replicate that here.
-    msleep(400);
+    Sleep(400);
     ClearCommBreak(uart->port);
     return 0;
 #endif
@@ -651,7 +651,7 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
     case SIMPLE_UART_DSR:
         return (status & MS_DSR_ON) ? 1 : 0;
     case SIMPLE_UART_DCD:
-        return (status & MS_RSLD_ON) ? 1 : 0;
+        return (status & MS_RLSD_ON) ? 1 : 0;
     case SIMPLE_UART_RI:
         return (status & MS_RING_ON) ? 1 : 0;
     default:

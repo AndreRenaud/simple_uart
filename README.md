@@ -37,18 +37,18 @@ On success the number of elements in the *namesp* and *descriptionsp* lists will
 #### Example:
 ```c
 char **names;
-char **description;
+char **descriptions;
 int nuarts = simple_uart_list(&names, &descriptions);
 for (int i = 0; i < nuarts; i++) {
-	printf("Port %d: %s: %s\n", i, names[i], descriptions[i]);
+	printf("Port %d: %s: %s\n", i, names[i], (descriptions && descriptions[i]) ? descriptions[i] : "unknown");
 }
 
 for (int i = 0; i < nuarts; i++) {
-	free(names[i]);
-	free(descriptions[i]);
+	if (names[i]) free(names[i]);
+	if (descriptions && descriptions[i]) free(descriptions[i]);
 }
 free(names);
-free(descriptions);
+if (descriptions) free(descriptions);
 ```
 
 ```c
