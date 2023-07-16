@@ -81,9 +81,6 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
         commTimeout.ReadTotalTimeoutConstant = 1;
         SetCommTimeouts(sc->port, &commTimeout);
     }
-
-    Sleep(50);
-
     if (!ReadFile (sc->port, buffer, max_len, (LPDWORD)&r, NULL)) {
         return -GetLastError();
     }
