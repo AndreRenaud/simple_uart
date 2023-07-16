@@ -69,7 +69,7 @@ struct simple_uart
 
 int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
 {
-    int r;
+    int r = 0;
 #ifdef WIN32
     COMMTIMEOUTS commTimeout;
 
@@ -82,8 +82,11 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
         SetCommTimeouts(sc->port, &commTimeout);
     }
 
-    if (!ReadFile (sc->port, buffer, max_len, (LPDWORD)&r, NULL) != 0)
+    Sleep(50);
+
+    if (!ReadFile (sc->port, buffer, max_len, (LPDWORD)&r, NULL)) {
         return -GetLastError();
+    }
 #else
     fd_set readfds, exceptfds;
     struct timeval t;
@@ -345,7 +348,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
             return -errno;
     }
 #endif
-    return 0; 
+    return 0;
 #endif
 }
 
