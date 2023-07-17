@@ -7,15 +7,19 @@ extern "C" {
 
 #include <stdbool.h>
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 struct simple_uart;
 
 enum {
-	SIMPLE_UART_RTS,
-	SIMPLE_UART_CTS,
-	SIMPLE_UART_DSR,
-	SIMPLE_UART_DCD,
-	SIMPLE_UART_DTR,
-	SIMPLE_UART_RI,
+    SIMPLE_UART_RTS,
+    SIMPLE_UART_CTS,
+    SIMPLE_UART_DSR,
+    SIMPLE_UART_DCD,
+    SIMPLE_UART_DTR,
+    SIMPLE_UART_RI,
 };
 
 // Builds a list of device names that can be opened.
