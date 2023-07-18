@@ -699,3 +699,15 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     return 0;
 #endif
 }
+
+int simple_uart_flush(struct simple_uart *uart)
+{
+#if defined(__linux__) || defined(__APPLE__)
+    if (tcdrain(uart->fd) < 0)
+        return -errno;
+#else
+    if (!FlushFileBuffers(uart->port))
+        return -GetLastError();
+#endif
+    return 0;
+}
