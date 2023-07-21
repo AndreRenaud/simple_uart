@@ -435,72 +435,66 @@ int simple_uart_set_character_delay(struct simple_uart *sc, int delay_us)
     return old_delay;
 }
 
-int simple_uart_list(char ***namesp, char ***descriptionp)
+int simple_uart_list(char ***namesp, char ***descriptionp, int num, char **filtp)
 {
+#if defined(__linux__)
+    const char  syspath[] = "/sys/class/tty/";
+    const int   numFiltDef = 2; // entries in def_filt
+    const char* defFilt[] = {
+        "ttyS[0-9]*",   // ttySx devices
+        "ttyUSB[0-9]*"  // ttyUSBx devices
+    };
+#elif defined(__APPLE__)
+    char syspath[] = "/dev/";
+    const int   numFiltDef = 1; // entries in def_filt
+    const char* defFilt[] = {
+        "tty.*" // ttySx devices
+    };
+#endif
+
+
 #if defined(__linux__) || defined(__APPLE__)
     glob_t g;
     char **names = NULL;
     char **description = NULL;
     int count = 0;
+    char **filters = NULL;
+    int numFilters = 0;
+    char ttypath[100];
 
-#ifdef __linux__
-    if (glob("/sys/class/tty/ttyS[0-9]*", 0, NULL, &g) >= 0) {
-        char buffer[100];
-        char **new_names;
-        new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
-        if (!new_names) {
-            globfree(&g);
-            free(names);
-            return -ENOMEM;
-        }
-        names = new_names;
-        for (int i = count; i < count + g.gl_pathc; i++) {
-            sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
-            names[i] = strdup(buffer);
-        }
-        count += g.gl_pathc;
-        globfree (&g);
+    // Default Filters used?
+    if ( 0 == num ) {
+        filters = (char**) &defFilt;    // assign default filters
+        numFilters = numFiltDef;        // assign defaults
+    } else {
+        filters = (char**) filtp;
+        numFilters = num;
     }
-
-    if (glob ("/sys/class/tty/ttyUSB[0-9]*", 0, NULL, &g) >= 0) {
-        char buffer[100];
-        char **new_names;
-        new_names = realloc(names, (count + g.gl_pathc) * sizeof (char *));
-        if (!new_names) {
-            globfree(&g);
-            free(names);
-            return -ENOMEM;
+    /* collect over all filters */
+    for ( int i = 0; i < numFilters; i++ ) {
+        /* build path to device */
+        strncpy(ttypath, syspath, sizeof(ttypath));
+        strncpy(ttypath+strlen(ttypath), filters[i], sizeof(ttypath)-strlen(ttypath));
+        ttypath[sizeof(ttypath)-1] = '\0';  // force terminate
+        /* extract from system */
+        if (glob(ttypath, 0, NULL, &g) >= 0) {
+            char buffer[100];
+            char **new_names;
+            new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
+            if (!new_names) {
+                globfree(&g);
+                free(names);
+                return -ENOMEM;
+            }
+            names = new_names;
+            for (int i = count; i < count + g.gl_pathc; i++) {
+                sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
+                names[i] = strdup(buffer);
+            }
+            count += g.gl_pathc;
+            globfree (&g);
         }
-        names = new_names;
-        for (int i = count; i < count + g.gl_pathc; i++) {
-            sprintf (buffer, "/dev/%s", basename (g.gl_pathv[i - count]));
-            names[i] = strdup (buffer);
-        }
-        count += g.gl_pathc;
-        globfree (&g);
     }
-#endif
-
-#ifdef __APPLE__
-        if (glob ("/dev/tty.*", 0, NULL, &g) >= 0) {
-        char buffer[100];
-        char **new_names;
-        new_names = realloc(names, (count + g.gl_pathc) * sizeof (char *));
-        if (!new_names) {
-            globfree(&g);
-            free(names);
-            return -ENOMEM;
-        }
-        names = new_names;
-        for (int i = count; i < count + g.gl_pathc; i++) {
-            sprintf (buffer, "/dev/%s", basename (g.gl_pathv[i - count]));
-            names[i] = strdup (buffer);
-        }
-        count += g.gl_pathc;
-        globfree (&g);
-    }
-#endif
-
     *namesp = names;
     *descriptionp = description;
     return count;
