@@ -444,62 +444,34 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
     int count = 0;
 
 #ifdef __linux__
-    if (glob("/sys/class/tty/ttyS[0-9]*", 0, NULL, &g) >= 0) {
-        char buffer[100];
-        char **new_names;
-        new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
-        if (!new_names) {
-            globfree(&g);
-            free(names);
-            return -ENOMEM;
-        }
-        names = new_names;
-        for (int i = count; i < count + g.gl_pathc; i++) {
-            sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
-            names[i] = strdup(buffer);
-        }
-        count += g.gl_pathc;
-        globfree (&g);
-    }
-
-    if (glob ("/sys/class/tty/ttyUSB[0-9]*", 0, NULL, &g) >= 0) {
-        char buffer[100];
-        char **new_names;
-        new_names = realloc(names, (count + g.gl_pathc) * sizeof (char *));
-        if (!new_names) {
-            globfree(&g);
-            free(names);
-            return -ENOMEM;
-        }
-        names = new_names;
-        for (int i = count; i < count + g.gl_pathc; i++) {
-            sprintf (buffer, "/dev/%s", basename (g.gl_pathv[i - count]));
-            names[i] = strdup (buffer);
-        }
-        count += g.gl_pathc;
-        globfree (&g);
-    }
+    char *path_globs[] = {"/sys/class/tty/ttyS[0-9]*", "/sys/class/tty/ttyUSB[0-9]*", "/sys/class/tty/ttyACM[0-9]*"};
 #endif
 
 #ifdef __APPLE__
-        if (glob ("/dev/tty.*", 0, NULL, &g) >= 0) {
-        char buffer[100];
-        char **new_names;
-        new_names = realloc(names, (count + g.gl_pathc) * sizeof (char *));
-        if (!new_names) {
-            globfree(&g);
-            free(names);
-            return -ENOMEM;
-        }
-        names = new_names;
-        for (int i = count; i < count + g.gl_pathc; i++) {
-            sprintf (buffer, "/dev/%s", basename (g.gl_pathv[i - count]));
-            names[i] = strdup (buffer);
-        }
-        count += g.gl_pathc;
-        globfree (&g);
-    }
+    char *path_globs[] = {"/dev/tty.*"};
 #endif
+
+    for (int path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
+        if (glob(path_globs[path], 0, NULL, &g) >= 0) {
+            char buffer[100];
+            char **new_names;
+            new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
+            if (!new_names)
+            {
+                globfree(&g);
+                free(names);
+                return -ENOMEM;
+            }
+            names = new_names;
+            for (int i = count; i < count + g.gl_pathc; i++)
+            {
+                sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
+                names[i] = strdup(buffer);
+            }
+            count += g.gl_pathc;
+            globfree(&g);
+        }
+    }
 
     *namesp = names;
     *descriptionp = description;
