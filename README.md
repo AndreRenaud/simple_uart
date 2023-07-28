@@ -108,9 +108,9 @@ Sets a delay to be specified between each character written when using *simple_u
 This is useful when communicating with devices that do not support flow control, and are not able to process data at full baudrate
 
 ```c
-bool simple_uart_has_data(struct simple_uart *uart);
+int simple_uart_has_data(struct simple_uart *uart);
 ```
-Determine if there is outstanding data available to read
+Returns the number of available bytes on the UART.
 
 ```c
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...);
