@@ -110,7 +110,7 @@ This is useful when communicating with devices that do not support flow control,
 ```c
 int simple_uart_has_data(struct simple_uart *uart);
 ```
-Returns the number of available bytes on the UART.
+Returns the number of available UART bytes.
 
 ```c
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...);
