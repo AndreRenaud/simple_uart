@@ -26,7 +26,7 @@ enum {
 // ie: /dev/ttyS0 etc... (or COM1: on Win32)
 // Returns the number of items in the list.
 // Caller is responsible for free'ing each name/description and the overall list
-int simple_uart_list(char ***namesp, char ***descriptionp);
+ssize_t simple_uart_list(char ***namesp, char ***descriptionp);
 
 /**
  * Opens a uart, either by device name, or if that fails it will search
@@ -36,11 +36,11 @@ struct simple_uart *simple_uart_open(const char *name, int speed, const char *mo
 int simple_uart_close(struct simple_uart *uart);
 
 /* Raw read/write */
-int simple_uart_read(struct simple_uart *uart, void *buffer, int max_len);
-int simple_uart_write(struct simple_uart *uart, const void *buffer, int len);
+ssize_t simple_uart_read(struct simple_uart *uart, void *buffer, size_t max_len);
+ssize_t simple_uart_write(struct simple_uart *uart, const void *buffer, size_t len);
 
 /* Sets the delay between sending each character when using uart_write */
-int simple_uart_set_character_delay(struct simple_uart *uart, int delay_us);
+unsigned int simple_uart_set_character_delay(struct simple_uart *uart, unsigned int delay_us);
 
 /**
  * Returns how many data bytes available on the uart
@@ -78,7 +78,7 @@ int simple_uart_send_break(struct simple_uart *uart);
  * Read data until either a line ending (carriage return/line feed) is seen,
  * or a timeout occurs
  */
-int simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
 
 #ifdef __cplusplus
 }
