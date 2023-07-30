@@ -122,12 +122,17 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
     ssize_t r;
     if (sc->char_delay_us > 0) {
         const uint8_t *buf8 = buffer;
-        for (int i = 0; i < len; i++) {
+        for (size_t i = 0; i < len; i++) {
             ssize_t e = write(sc->fd, &buf8[i], 1);
             if (e < 0)
                 return e;
-            if (e == 0)
-                return i;
+            if (e == 0) {
+                if (!(((ssize_t) i) < 0 )) {
+                    return (ssize_t) i;
+                } else {
+                    return _SC_SSIZE_MAX;
+                }
+            }
             usleep(sc->char_delay_us);
         }
         if (!(((ssize_t) len) < 0 )) {
@@ -455,7 +460,7 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
     char *path_globs[] = {"/dev/tty.*"};
 #endif
 
-    for (int path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
+    for (size_t path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
         if (glob(path_globs[path], 0, NULL, &g) >= 0) {
             char buffer[100];
             char **new_names;
@@ -538,7 +543,7 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
 {
     int pos = 0;
     int last = mseconds();
-    int now;
+    int now = mseconds();
 
     if (!buffer || max_len == 0)
         return -EINVAL;
