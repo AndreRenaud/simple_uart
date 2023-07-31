@@ -120,6 +120,7 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
     WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
 #else
     ssize_t r;
+    if (len > _SC_SSIZE_MAX) len = _SC_SSIZE_MAX;   // avoid overflow at cast to signed type
     if (sc->char_delay_us > 0) {
         const uint8_t *buf8 = buffer;
         for (size_t i = 0; i < len; i++) {
@@ -127,12 +128,7 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
             if (e < 0)
                 return e;
             if (e == 0) {
-                if (!(((ssize_t) i) < 0 )) {
-                    return (ssize_t) i;
-                } else {
-                    return _SC_SSIZE_MAX;
-                }
-            }
+                return (ssize_t) i;
             usleep(sc->char_delay_us);
         }
         if (!(((ssize_t) len) < 0 )) {
@@ -461,6 +457,8 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
 #endif
 
     for (size_t path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
+        if (path >= _SC_SSIZE_MAX)  // abort to avoid memory leakage
+            break;
         if (glob(path_globs[path], 0, NULL, &g) >= 0) {
             char buffer[100];
             char **new_names;
@@ -484,13 +482,9 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
 
     *namesp = names;
     *descriptionp = description;
-    
-    if (!(((ssize_t) count) < 0)) {
-        return (ssize_t) count;
-    } else {
-        return _SC_SSIZE_MAX;
-    }
-    
+
+    return (ssize_t) count;
+
 #else
     int pos = 0;
     char **names = NULL;
