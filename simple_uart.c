@@ -453,11 +453,10 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
 #endif
 
     for (size_t path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
-        if (path >= _SC_SSIZE_MAX)  // abort to avoid memory leakage
-            break;
         if (glob(path_globs[path], 0, NULL, &g) >= 0) {
             char buffer[100];
             char **new_names;
+            if ((count + g.gl_pathc) > _SC_SSIZE_MAX) break;    // abort to avoid memory leakage
             new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
             if (!new_names)
             {
