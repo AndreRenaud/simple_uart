@@ -38,8 +38,8 @@ On success the number of elements in the *namesp* and *descriptionsp* lists will
 ```c
 char **names;
 char **descriptions;
-int nuarts = (int) simple_uart_list(&names, &descriptions);
-for (int i = 0; i < nuarts; i++) {
+ssize_t nuarts = simple_uart_list(&names, &descriptions);
+for (ssize_t i = 0; i < nuarts; i++) {
 	printf("Port %d: %s: %s\n", i, names[i], (descriptions && descriptions[i]) ? descriptions[i] : "unknown");
 }
 
