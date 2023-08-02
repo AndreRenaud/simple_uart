@@ -131,7 +131,7 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
                 return (ssize_t) i;
             usleep(sc->char_delay_us);
         }
-        r = len
+        r = len;
     } else {
         r = write (sc->fd, buffer, len);
         if (r < 0)
