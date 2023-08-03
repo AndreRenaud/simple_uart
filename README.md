@@ -17,9 +17,9 @@ The library consists of a single .c and .h pair. To add it to a project, simply 
 
 Please submit a bug report if this does not work.
 
-## API
+## [API](./simple_uart.h)
 ```c
-int simple_uart_list(char ***namesp, char ***descriptionp);
+ssize_t simple_uart_list(char ***namesp, char ***descriptionp);
 ```
 
 List available UART ports and descriptions.
@@ -38,8 +38,8 @@ On success the number of elements in the *namesp* and *descriptionsp* lists will
 ```c
 char **names;
 char **descriptions;
-int nuarts = simple_uart_list(&names, &descriptions);
-for (int i = 0; i < nuarts; i++) {
+ssize_t nuarts = simple_uart_list(&names, &descriptions);
+for (ssize_t i = 0; i < nuarts; i++) {
 	printf("Port %d: %s: %s\n", i, names[i], (descriptions && descriptions[i]) ? descriptions[i] : "unknown");
 }
 
@@ -72,7 +72,7 @@ int simple_uart_close(struct simple_uart *uart);
 Close a previously opened UART.
 
 ```c
-int simple_uart_read(struct simple_uart *uart, void *buffer, int max_len);
+ssize_t simple_uart_read(struct simple_uart *uart, void *buffer, size_t max_len);
 ```
 Read bytes from the given UART.
 
@@ -87,7 +87,7 @@ Argument | Details
 Returns the number of bytes written to *buffer* (up to *max_len*). < 0 on failure.
 
 ```c
-int simple_uart_write(struct simple_uart *uart, const void *buffer, int len);
+ssize_t simple_uart_write(struct simple_uart *uart, const void *buffer, size_t len);
 ```
 Write bytes to the given UART.
 
@@ -102,7 +102,7 @@ Argument | Details
 Returns the number of bytes written from *buffer* to the UART. < 0 on failure.
 
 ```c
-int simple_uart_set_character_delay(struct simple_uart *uart, int delay_us);
+unsigned int simple_uart_set_character_delay(struct simple_uart *uart, unsigned int delay_us);
 ```
 Sets a delay to be specified between each character written when using *simple_uart_write*.
 This is useful when communicating with devices that do not support flow control, and are not able to process data at full baudrate
@@ -154,6 +154,6 @@ int simple_uart_send_break(struct simple_uart *uart);
 Send a serial break on the UART
 
 ```c
-int simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
 ```
 Read bytes of data up to a carriage return/line feed.

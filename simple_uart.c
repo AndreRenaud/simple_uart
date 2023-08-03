@@ -63,13 +63,13 @@ struct simple_uart
 #else
     int fd;
 #endif
-    int char_delay_us;
+    unsigned int char_delay_us;
     FILE *logfile;
 };
 
-int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
+ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 {
-    int r = 0;
+    ssize_t r = 0;
 #ifdef WIN32
     COMMTIMEOUTS commTimeout;
 
@@ -106,28 +106,29 @@ int simple_uart_read(struct simple_uart *sc, void *buffer, int max_len)
         r = -errno;
 #endif
     if (r > 0 && sc->logfile) {
-        fwrite(buffer, r, 1, sc->logfile);
+        fwrite(buffer, (size_t) r, 1, sc->logfile);
         fflush(sc->logfile);
     }
     return r;
 }
 
-int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
+ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len)
 {
 #ifdef WIN32
-    int r = 0;
+    ssize_t r = 0;
     /* TODO: Support char_delay_us */
     WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
 #else
-    int r;
+    ssize_t r;
+    if (len > _SC_SSIZE_MAX) len = _SC_SSIZE_MAX;   // avoid overflow at cast to signed type
     if (sc->char_delay_us > 0) {
         const uint8_t *buf8 = buffer;
-        for (int i = 0; i < len; i++) {
-            int e = write(sc->fd, &buf8[i], 1);
+        for (size_t i = 0; i < len; i++) {
+            ssize_t e = write(sc->fd, &buf8[i], 1);
             if (e < 0)
                 return e;
             if (e == 0)
-                return i;
+                return (ssize_t) i;
             usleep(sc->char_delay_us);
         }
         r = len;
@@ -139,7 +140,7 @@ int simple_uart_write(struct simple_uart *sc, const void *buffer, int len)
 #endif
 
     if (r > 0 && sc->logfile) {
-        fwrite(buffer, r, 1, sc->logfile);
+        fwrite(buffer, (size_t) r, 1, sc->logfile);
         fflush(sc->logfile);
     }
 
@@ -163,7 +164,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     return 0;
 #else
     struct termios options;
-    int sp = 0;
+    speed_t sp = B0;
 #ifdef __linux__
     int non_standard = 0;
 #else // __APPLE__ type casting
@@ -261,7 +262,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
         cfsetispeed(&options, sp);
     }
 
-    options.c_cflag &= ~(HUPCL);
+    options.c_cflag &= (tcflag_t) ~(HUPCL);
 
     options.c_cflag |= CREAD | CLOCAL;
 
@@ -269,10 +270,10 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 
     // parity
     if (HAS_OPTION ('N'))
-        options.c_cflag &= ~PARENB;
+        options.c_cflag &= (tcflag_t) ~PARENB;
     else if (HAS_OPTION ('E')) {
         options.c_cflag |= PARENB;
-        options.c_cflag &= ~PARODD;
+        options.c_cflag &= (tcflag_t) ~PARODD;
     } else if (HAS_OPTION ('O')) {
         options.c_cflag |= PARENB;
         options.c_cflag |= PARODD;
@@ -281,13 +282,13 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     if (HAS_OPTION ('2'))
         options.c_cflag |= CSTOPB;
     else
-        options.c_cflag &= ~CSTOPB;
+        options.c_cflag &= (tcflag_t) ~CSTOPB;
     /* Flush data on each write */
     if (HAS_OPTION('W'))
         options.c_lflag |= NOFLSH;
 
     // Character size
-    options.c_cflag &= ~CSIZE;
+    options.c_cflag &= (tcflag_t) ~CSIZE;
     if (HAS_OPTION ('8'))
         options.c_cflag |= CS8;
     else if (HAS_OPTION ('7'))
@@ -304,16 +305,16 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
         options.c_cflag &= ~CRTSCTS;
 
     // raw input mode
-    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    options.c_lflag &= (tcflag_t) ~(ICANON | ECHO | ECHOE | ISIG);
 
     // disable software flow control
-    options.c_iflag &= ~(IXON | IXOFF | IXANY);
+    options.c_iflag &= (tcflag_t) ~(IXON | IXOFF | IXANY);
 
     // maintain carriage return on input, and don't translate it
-    options.c_iflag &= ~(IGNCR | ICRNL | INLCR);
+    options.c_iflag &= (tcflag_t) ~(IGNCR | ICRNL | INLCR);
 
     // raw output mode
-    options.c_oflag &= ~OPOST;
+    options.c_oflag &= (tcflag_t) ~OPOST;
 
     options.c_cc[VTIME] = 0;
     options.c_cc[VMIN] = 0;
@@ -338,8 +339,8 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
         /* Check we can divide down */
         if ((ss.baud_base / speed) == 0)
             return -EINVAL;
-        ss.flags &= ~(ASYNC_SPD_MASK);
-        ss.flags |= ASYNC_SPD_CUST;
+        ss.flags &= (int) ~(ASYNC_SPD_MASK);
+        ss.flags |= (int) ASYNC_SPD_CUST;
         ss.custom_divisor = ss.baud_base / speed;
         if (ioctl(sc->fd, TIOCSSERIAL, &ss) < 0)
             return -errno;
@@ -428,20 +429,20 @@ int simple_uart_has_data(struct simple_uart *sc)
 #endif
 }
 
-int simple_uart_set_character_delay(struct simple_uart *sc, int delay_us)
+unsigned int simple_uart_set_character_delay(struct simple_uart *sc, unsigned int delay_us)
 {
-    int old_delay = sc->char_delay_us;
+    unsigned int old_delay = sc->char_delay_us;
     sc->char_delay_us = delay_us;
     return old_delay;
 }
 
-int simple_uart_list(char ***namesp, char ***descriptionp)
+ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
 {
 #if defined(__linux__) || defined(__APPLE__)
     glob_t g;
     char **names = NULL;
     char **description = NULL;
-    int count = 0;
+    size_t count = 0;
 
 #ifdef __linux__
     char *path_globs[] = {"/sys/class/tty/ttyS[0-9]*", "/sys/class/tty/ttyUSB[0-9]*", "/sys/class/tty/ttyACM[0-9]*"};
@@ -451,10 +452,11 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
     char *path_globs[] = {"/dev/tty.*"};
 #endif
 
-    for (int path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
+    for (size_t path = 0; path < sizeof(path_globs) / sizeof(path_globs[0]); path++) {
         if (glob(path_globs[path], 0, NULL, &g) >= 0) {
             char buffer[100];
             char **new_names;
+            if ((count + g.gl_pathc) > _SC_SSIZE_MAX) break;    // abort to avoid memory leakage
             new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
             if (!new_names)
             {
@@ -463,7 +465,7 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
                 return -ENOMEM;
             }
             names = new_names;
-            for (int i = count; i < count + g.gl_pathc; i++)
+            for (size_t i = count; i < count + g.gl_pathc; i++)
             {
                 sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
                 names[i] = strdup(buffer);
@@ -475,7 +477,9 @@ int simple_uart_list(char ***namesp, char ***descriptionp)
 
     *namesp = names;
     *descriptionp = description;
-    return count;
+
+    return (ssize_t) count;
+
 #else
     int pos = 0;
     char **names = NULL;
@@ -524,11 +528,11 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
     return 0;
 }
 
-int simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, int timeout)
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, int timeout)
 {
     int pos = 0;
     int last = mseconds();
-    int now;
+    int now = mseconds();
 
     if (!buffer || max_len == 0)
         return -EINVAL;
@@ -537,7 +541,7 @@ int simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, i
 
     do {
         char ch;
-        int ret = simple_uart_read(uart, &ch, 1);
+        ssize_t ret = simple_uart_read(uart, &ch, 1);
         if (ret < 0)
             return ret;
         if (ret > 0) {
