@@ -25,6 +25,7 @@
 #include <libgen.h>
 #else
 #include <windows.h>
+#include <limits.h>
 #endif
 
 #ifdef __linux__
@@ -81,7 +82,8 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
         commTimeout.ReadTotalTimeoutConstant = 1;
         SetCommTimeouts(sc->port, &commTimeout);
     }
-    if (!ReadFile (sc->port, buffer, max_len, (LPDWORD)&r, NULL)) {
+    if (max_len > ULONG_MAX) max_len = ULONG_MAX;   // avoid overflow at typecast
+    if (!ReadFile (sc->port, buffer, (DWORD)max_len, (LPDWORD)&r, NULL)) {
         return -GetLastError();
     }
 #else
@@ -117,7 +119,8 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
 #ifdef WIN32
     ssize_t r = 0;
     /* TODO: Support char_delay_us */
-    WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
+    if (len > ULONG_MAX) len = ULONG_MAX;   // avoid overflow at typecast
+    WriteFile (sc->port, buffer, (DWORD)len, (LPDWORD)&r, NULL);
 #else
     ssize_t r;
     if (len > _SC_SSIZE_MAX) len = _SC_SSIZE_MAX;   // avoid overflow at cast to signed type
@@ -151,9 +154,10 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 {
 #ifdef WIN32
     DCB dcbConfig;
+    if (0 > speed) speed = 0;   // avoid overflow at typecast
     if (GetCommState (sc->port, &dcbConfig)) {
         // TODO: Do mode_string properly
-        dcbConfig.BaudRate = speed;
+        dcbConfig.BaudRate = (DWORD)speed;
         dcbConfig.ByteSize = 8;
         dcbConfig.Parity = NOPARITY;
         dcbConfig.StopBits = ONESTOPBIT;
@@ -417,10 +421,13 @@ int simple_uart_has_data(struct simple_uart *sc)
 
 #ifdef WIN32
     COMSTAT cs;
+    DWORD r;
     if (!ClearCommError(sc->port, NULL, &cs)) {
         return 0;
     }
-    return cs.cbInQue;
+    r = cs.cbInQue;
+    if (r > INT_MAX) r = INT_MAX;
+    return (int)r;
 #else
     int bytes_available;
     if (ioctl(sc->fd, FIONREAD, &bytes_available) < 0)
@@ -489,7 +496,7 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
         char target[255];
         sprintf(buffer, "COM%d", i + 1);
         if (QueryDosDevice(buffer, target, sizeof(target)) > 0) {
-            char **new_names = realloc(names, (pos + 1) * sizeof (char *));
+            char **new_names = realloc(names, (DWORD)(pos + 1) * sizeof (char *));
             if (!new_names)
                 continue;
             names = new_names;
@@ -618,9 +625,12 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
     }
 #else
     DWORD status;
-    if (!GetCommModemStatus(uart->port, &status))
-        return -GetLastError();
-
+    DWORD r;
+    if (!GetCommModemStatus(uart->port, &status)) {
+        r = -GetLastError();
+        if (r > INT_MAX) r = INT_MAX;
+        return (int)r;
+    }
     switch (pin) {
     case SIMPLE_UART_CTS:
         return (status & MS_CTS_ON) ? 1 : 0;
@@ -660,6 +670,7 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     return 0;
 #else
     bool res;
+    DWORD r;
     switch(pin) {
     case SIMPLE_UART_RTS:
         res = EscapeCommFunction(uart->port, high ? SETRTS : CLRRTS);
@@ -670,8 +681,11 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     default:
         return -EINVAL;
     }
-    if (!res)
-        return -GetLastError();
+    if (!res) {
+        r = -GetLastError();
+        if (r > INT_MAX) r = INT_MAX;
+        return (int)r;
+    }
     return 0;
 #endif
 }
@@ -682,8 +696,12 @@ int simple_uart_flush(struct simple_uart *uart)
     if (tcdrain(uart->fd) < 0)
         return -errno;
 #else
-    if (!FlushFileBuffers(uart->port))
-        return -GetLastError();
+    DWORD r;
+    if (!FlushFileBuffers(uart->port)) {
+        r = -GetLastError();
+        if (r > INT_MAX) r = INT_MAX;
+        return (int)r;
+    }
 #endif
     return 0;
 }
