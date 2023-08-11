@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <stdint.h>
 
 #ifndef WIN32
 #include <sys/types.h>
@@ -42,12 +43,12 @@
 #if defined(__linux__) || defined(__APPLE__)
 /* This requires you to link against -lrt
  */
-#define mseconds() (int)({ struct timespec _ts; \
+#define mseconds() (uint64_t)({ struct timespec _ts; \
                       clock_gettime(CLOCK_MONOTONIC, &_ts); \
                       _ts.tv_sec * 1000 + _ts.tv_nsec / (1000 * 1000); \
                    })
 #else
-#define mseconds() GetTickCount()
+#define mseconds() (uint64_t)(GetTickCount64())
 #endif
 
 #ifndef TIOCSRS485
@@ -535,11 +536,11 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
     return 0;
 }
 
-ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, int timeout)
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, uint64_t ms_timeout)
 {
-    int pos = 0;
-    int last = mseconds();
-    int now = mseconds();
+    int      pos = 0;
+    uint64_t last = mseconds();
+    uint64_t now = mseconds();
 
     if (!buffer || max_len == 0)
         return -EINVAL;
@@ -562,7 +563,7 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
             }
         }
         now = mseconds();
-    } while (pos < max_len - 1 && now - last < timeout);
+    } while (pos < max_len - 1 && now - last < ms_timeout);
 
     /* If we got a carriage return + line feed, just collapse them */
     while (pos > 0 && (buffer[pos - 1] == '\r' || buffer[pos - 1] == '\n')) {
@@ -570,7 +571,7 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
         pos--;
     }
 
-    if (now - last >= timeout)
+    if (now - last >= ms_timeout)
         return -ETIMEDOUT;
 
     return pos;

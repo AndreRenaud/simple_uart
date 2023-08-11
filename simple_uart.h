@@ -78,7 +78,7 @@ int simple_uart_send_break(struct simple_uart *uart);
  * Read data until either a line ending (carriage return/line feed) is seen,
  * or a timeout occurs
  */
-ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, uint64_t ms_timeout);
 
 #ifdef __cplusplus
 }
