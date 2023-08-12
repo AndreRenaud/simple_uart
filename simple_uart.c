@@ -444,12 +444,11 @@ unsigned int simple_uart_set_character_delay(struct simple_uart *sc, unsigned in
     return old_delay;
 }
 
-ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
+ssize_t simple_uart_list(char ***namesp)
 {
 #if defined(__linux__) || defined(__APPLE__)
     glob_t g;
     char **names = NULL;
-    char **description = NULL;
     size_t count = 0;
 
 #ifdef __linux__
@@ -482,10 +481,7 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
             globfree(&g);
         }
     }
-
     *namesp = names;
-    *descriptionp = description;
-
     return (ssize_t) count;
 
 #else

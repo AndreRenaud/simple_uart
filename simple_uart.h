@@ -27,7 +27,7 @@ enum {
 // ie: /dev/ttyS0 etc... (or COM1: on Win32)
 // Returns the number of items in the list.
 // Caller is responsible for free'ing each name/description and the overall list
-ssize_t simple_uart_list(char ***namesp, char ***descriptionp);
+ssize_t simple_uart_list(char ***namesp);
 
 /**
  * Opens a uart, either by device name, or if that fails it will search
