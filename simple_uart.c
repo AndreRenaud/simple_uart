@@ -151,114 +151,117 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
     return r;
 }
 
-static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)
-{
+/* Help macros */
+#define HAS_OPTION(a) (strchr (mode_string, a) != NULL || strchr (mode_string, tolower(a)) != NULL)
+
 #ifdef WIN32
-    DCB dcbConfig;
-    if (0 > speed) speed = 0;   // avoid overflow at typecast
-    if (GetCommState (sc->port, &dcbConfig)) {
-        // TODO: Do mode_string properly
-        dcbConfig.BaudRate = (DWORD)speed;
-        dcbConfig.ByteSize = 8;
-        dcbConfig.Parity = NOPARITY;
-        dcbConfig.StopBits = ONESTOPBIT;
-        dcbConfig.fBinary = TRUE;
-        dcbConfig.fParity = TRUE;
-        SetCommState (sc->port, &dcbConfig);
+static ssize_t simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Windows Port config
+{
+    /* Variables */
+    DCB   options;  // config handle for windows, @see https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
+
+    /* only non negativ values */
+    if (0 > speed) speed = CBR_38400;   // default speed
+    /* Accquire current port config */
+    if (!GetCommState (sc->port, &options))
+        return -GetLastError();
+    /* parse mode string */
+        // parity
+    if (HAS_OPTION ('N')) {         // no parity
+        options.fParity = FALSE;
+        options.Parity = NOPARITY;
+    } else if (HAS_OPTION ('E')) {  // even parity
+        options.fParity = TRUE;
+        options.Parity = EVENPARITY;
+    } else if (HAS_OPTION ('O')) {  // odd parity
+        options.fParity = TRUE;
+        options.Parity = ODDPARITY;
     }
+        // stop bits
+    if (HAS_OPTION ('2')) {
+        options.StopBits = TWOSTOPBITS;
+    } else {
+        options.StopBits = ONESTOPBIT;
+    }
+        // Disable flushing the input and output queues when generating signals for the INT, QUIT, and SUSP characters.
+//    if (HAS_OPTION('W')) {
+//        options.c_lflag |= NOFLSH;
+//  }
+        // character size
+    if (HAS_OPTION ('8')) {
+        options.ByteSize = 8;
+    } else if (HAS_OPTION ('7')) {
+        options.ByteSize = 7;
+    } else if (HAS_OPTION ('6')) {
+        options.ByteSize = 6;
+    } else if (HAS_OPTION ('5')) {
+        options.ByteSize = 5;
+    }
+        // Flow control
+    if (HAS_OPTION('F')) {
+        options.fRtsControl = RTS_CONTROL_HANDSHAKE;
+    } else {
+        options.fRtsControl = RTS_CONTROL_DISABLE;
+    }
+    /* mandatory options */
+    options.fBinary = TRUE;
+    /* assign to port */
+    if (!SetCommState (sc->port, &options))
+        return -GetLastError();
+    /* graceful end */
     return 0;
-#else
-    struct termios options;
-    speed_t sp = B0;
+}
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+static ssize_t simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Linux Port config
+{
+    struct termios  options;    // Linux options handle
+    speed_t         sp = B0;    // Default linux speed
 #ifdef __linux__
     int non_standard = 0;
 #else // __APPLE__ type casting
     speed_t mac_speed = speed;
 #endif
 
+    /* Select Baudrate */
     switch (speed)
     {
-    case 1200:
-        sp = B1200;
-        break;
-    case 2400:
-        sp = B2400;
-        break;
-    case 4800:
-        sp = B4800;
-        break;
-    case 9600:
-        sp = B9600;
-        break;
-    case 19200:
-        sp = B19200;
-        break;
-    case 38400:
-        sp = B38400;
-        break;
-    case 57600:
-        sp = B57600;
-        break;
-    case 115200:
-        sp = B115200;
-        break;
-    case 230400:
-        sp = B230400;
-        break;
+    case 1200:    sp = B1200;    break;
+    case 2400:    sp = B2400;    break;
+    case 4800:    sp = B4800;    break;
+    case 9600:    sp = B9600;    break;
+    case 19200:   sp = B19200;   break;
+    case 38400:   sp = B38400;   break;
+    case 57600:   sp = B57600;   break;
+    case 115200:  sp = B115200;  break;
+    case 230400:  sp = B230400;  break;
 #ifdef __linux__
-    case 460800:
-        sp = B460800;
-        break;
-    case 500000:
-        sp = B500000;
-        break;
-    case 576000:
-        sp = B576000;
-        break;
-    case 921600:
-        sp = B921600;
-        break;
-    case 1000000:
-        sp = B1000000;
-        break;
-    case 1152000:
-        sp = B1152000;
-        break;
-    case 1500000:
-        sp = B1500000;
-        break;
-    case 2000000:
-        sp = B2000000;
-        break;
-    case 2500000:
-        sp = B2500000;
-        break;
-    case 3000000:
-        sp = B3000000;
-        break;
-    case 3500000:
-        sp = B3500000;
-        break;
-    case 4000000:
-        sp = B4000000;
-        break;
-
-    default:
-        sp = B38400;
-        non_standard = 1;
+    case 460800:  sp = B460800;  break;
+    case 500000:  sp = B500000;  break;
+    case 576000:  sp = B576000;  break;
+    case 921600:  sp = B921600;  break;
+    case 1000000: sp = B1000000; break;
+    case 1152000: sp = B1152000; break;
+    case 1500000: sp = B1500000; break;
+    case 2000000: sp = B2000000; break;
+    case 2500000: sp = B2500000; break;
+    case 3000000: sp = B3000000; break;
+    case 3500000: sp = B3500000; break;
+    case 4000000: sp = B4000000; break;
+    default:      sp = B38400; non_standard = 1;
 #else // __APPLE__ only
     // The IOSSIOSPEED ioctl can be used to set arbitrary baud rates
     // other than those specified by POSIX. The driver for the underlying serial hardware
     // ultimately determines which baud rates can be used. This ioctl sets both the input
     // and output speed.
-    default: {
+    default:
         int r = ioctl(sc->fd, IOSSIOSPEED, &mac_speed);
         if (r < 0 && errno != ENOTTY)
             return -errno;
-    }
 #endif
     }
-
+    /* Accquire current port config */
     if (tcgetattr(sc->fd, &options) < 0)
         return -errno;
 
@@ -270,8 +273,6 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     options.c_cflag &= (tcflag_t) ~(HUPCL);
 
     options.c_cflag |= CREAD | CLOCAL;
-
-#define HAS_OPTION(a) (strchr (mode_string, a) != NULL || strchr (mode_string, tolower(a)) != NULL)
 
     // parity
     if (HAS_OPTION ('N'))
@@ -352,8 +353,8 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     }
 #endif
     return 0;
-#endif
 }
+#endif
 
 int simple_uart_close(struct simple_uart *sc)
 {
@@ -407,7 +408,7 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     }
     retval->fd = fd;
 #endif
-    int r = simple_uart_set_config(retval, speed, mode_string);
+    ssize_t r = simple_uart_set_config(retval, speed, mode_string);
     if (r < 0 && r != -ENOTTY) {
         simple_uart_close(retval);
         return NULL;
