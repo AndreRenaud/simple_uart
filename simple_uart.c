@@ -155,16 +155,21 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
 #define HAS_OPTION(a) (strchr (mode_string, a) != NULL || strchr (mode_string, tolower(a)) != NULL)
 
 #ifdef WIN32
-static ssize_t simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Windows Port config
+static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Windows Port config
 {
     /* Variables */
     DCB   options;  // config handle for windows, @see https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
+    DWORD ero;      // error return code
 
     /* only non negativ values */
     if (0 > speed) speed = CBR_38400;   // default speed
     /* Accquire current port config */
-    if (!GetCommState (sc->port, &options))
-        return -GetLastError();
+    if (!GetCommState (sc->port, &options)) {
+        ero = -GetLastError();
+        if (ero > INT_MAX)
+            ero = INT_MAX;
+        return (int) ero;
+    }
     /* parse mode string */
         // parity
     if (HAS_OPTION ('N')) {         // no parity
@@ -206,15 +211,19 @@ static ssize_t simple_uart_set_config(struct simple_uart *sc, int speed, const c
     /* mandatory options */
     options.fBinary = TRUE;
     /* assign to port */
-    if (!SetCommState (sc->port, &options))
-        return -GetLastError();
+    if (!SetCommState (sc->port, &options)) {
+        ero = -GetLastError();
+        if (ero > INT_MAX)
+            ero = INT_MAX;
+        return (int) ero;
+    }
     /* graceful end */
     return 0;
 }
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-static ssize_t simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Linux Port config
+static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Linux Port config
 {
     struct termios  options;    // Linux options handle
     speed_t         sp = B0;    // Default linux speed
@@ -255,10 +264,11 @@ static ssize_t simple_uart_set_config(struct simple_uart *sc, int speed, const c
     // other than those specified by POSIX. The driver for the underlying serial hardware
     // ultimately determines which baud rates can be used. This ioctl sets both the input
     // and output speed.
-    default:
+    default: {
         int r = ioctl(sc->fd, IOSSIOSPEED, &mac_speed);
         if (r < 0 && errno != ENOTTY)
             return -errno;
+    }
 #endif
     }
     /* Accquire current port config */
@@ -408,7 +418,7 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     }
     retval->fd = fd;
 #endif
-    ssize_t r = simple_uart_set_config(retval, speed, mode_string);
+    int r = simple_uart_set_config(retval, speed, mode_string);
     if (r < 0 && r != -ENOTTY) {
         simple_uart_close(retval);
         return NULL;
