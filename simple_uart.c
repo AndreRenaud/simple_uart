@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <stdint.h>
 
 #ifndef WIN32
 #include <sys/types.h>
@@ -25,6 +26,7 @@
 #include <libgen.h>
 #else
 #include <windows.h>
+#include <limits.h>
 #endif
 
 #ifdef __linux__
@@ -41,12 +43,12 @@
 #if defined(__linux__) || defined(__APPLE__)
 /* This requires you to link against -lrt
  */
-#define mseconds() (int)({ struct timespec _ts; \
+#define mseconds() (uint64_t)({ struct timespec _ts; \
                       clock_gettime(CLOCK_MONOTONIC, &_ts); \
                       _ts.tv_sec * 1000 + _ts.tv_nsec / (1000 * 1000); \
                    })
 #else
-#define mseconds() GetTickCount()
+#define mseconds() (uint64_t)(GetTickCount64())
 #endif
 
 #ifndef TIOCSRS485
@@ -81,7 +83,8 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
         commTimeout.ReadTotalTimeoutConstant = 1;
         SetCommTimeouts(sc->port, &commTimeout);
     }
-    if (!ReadFile (sc->port, buffer, max_len, (LPDWORD)&r, NULL)) {
+    if (max_len > ULONG_MAX) max_len = ULONG_MAX;   // avoid overflow at typecast
+    if (!ReadFile (sc->port, buffer, (DWORD)max_len, (LPDWORD)&r, NULL)) {
         return -GetLastError();
     }
 #else
@@ -117,7 +120,8 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
 #ifdef WIN32
     ssize_t r = 0;
     /* TODO: Support char_delay_us */
-    WriteFile (sc->port, buffer, len, (LPDWORD)&r, NULL);
+    if (len > ULONG_MAX) len = ULONG_MAX;   // avoid overflow at typecast
+    WriteFile (sc->port, buffer, (DWORD)len, (LPDWORD)&r, NULL);
 #else
     ssize_t r;
     if (len > _SC_SSIZE_MAX) len = _SC_SSIZE_MAX;   // avoid overflow at cast to signed type
@@ -147,100 +151,114 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
     return r;
 }
 
-static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)
-{
+/* Help macros */
+#define HAS_OPTION(a) (strchr (mode_string, a) != NULL || strchr (mode_string, tolower(a)) != NULL)
+
 #ifdef WIN32
-    DCB dcbConfig;
-    if (GetCommState (sc->port, &dcbConfig)) {
-        // TODO: Do mode_string properly
-        dcbConfig.BaudRate = speed;
-        dcbConfig.ByteSize = 8;
-        dcbConfig.Parity = NOPARITY;
-        dcbConfig.StopBits = ONESTOPBIT;
-        dcbConfig.fBinary = TRUE;
-        dcbConfig.fParity = TRUE;
-        SetCommState (sc->port, &dcbConfig);
+static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Windows Port config
+{
+    /* Variables */
+    DCB   options;  // config handle for windows, @see https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
+    DWORD ero;      // error return code
+
+    /* only non negativ values */
+    if (0 > speed) speed = CBR_38400;   // default speed
+    /* Accquire current port config */
+    if (!GetCommState (sc->port, &options)) {
+        ero = -GetLastError();
+        if (ero > INT_MAX)
+            return -1;
+        return (int) ero;
     }
+    /* parse mode string */
+        // parity
+    if (HAS_OPTION ('N')) {         // no parity
+        options.fParity = FALSE;
+        options.Parity = NOPARITY;
+    } else if (HAS_OPTION ('E')) {  // even parity
+        options.fParity = TRUE;
+        options.Parity = EVENPARITY;
+    } else if (HAS_OPTION ('O')) {  // odd parity
+        options.fParity = TRUE;
+        options.Parity = ODDPARITY;
+    }
+        // stop bits
+    if (HAS_OPTION ('2')) {
+        options.StopBits = TWOSTOPBITS;
+    } else {
+        options.StopBits = ONESTOPBIT;
+    }
+        // TODO: Disable flushing the input and output queues when generating signals for the INT, QUIT, and SUSP characters.
+//    if (HAS_OPTION('W')) {
+//        options.c_lflag |= NOFLSH;
+//  }
+        // character size
+    if (HAS_OPTION ('8')) {
+        options.ByteSize = 8;
+    } else if (HAS_OPTION ('7')) {
+        options.ByteSize = 7;
+    } else if (HAS_OPTION ('6')) {
+        options.ByteSize = 6;
+    } else if (HAS_OPTION ('5')) {
+        options.ByteSize = 5;
+    }
+        // Flow control
+    if (HAS_OPTION('F')) {
+        options.fRtsControl = RTS_CONTROL_HANDSHAKE;
+    } else {
+        options.fRtsControl = RTS_CONTROL_DISABLE;
+    }
+    /* mandatory options */
+    options.fBinary = TRUE;
+    /* assign to port */
+    if (!SetCommState (sc->port, &options)) {
+        ero = -GetLastError();
+        if (ero > INT_MAX)
+            return -1;
+        return (int) ero;
+    }
+    /* graceful end */
     return 0;
-#else
-    struct termios options;
-    speed_t sp = B0;
+}
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Linux Port config
+{
+    struct termios  options;    // Linux options handle
+    speed_t         sp = B0;    // Default linux speed
 #ifdef __linux__
     int non_standard = 0;
 #else // __APPLE__ type casting
     speed_t mac_speed = speed;
 #endif
 
+    /* Select Baudrate */
     switch (speed)
     {
-    case 1200:
-        sp = B1200;
-        break;
-    case 2400:
-        sp = B2400;
-        break;
-    case 4800:
-        sp = B4800;
-        break;
-    case 9600:
-        sp = B9600;
-        break;
-    case 19200:
-        sp = B19200;
-        break;
-    case 38400:
-        sp = B38400;
-        break;
-    case 57600:
-        sp = B57600;
-        break;
-    case 115200:
-        sp = B115200;
-        break;
-    case 230400:
-        sp = B230400;
-        break;
+    case 1200:    sp = B1200;    break;
+    case 2400:    sp = B2400;    break;
+    case 4800:    sp = B4800;    break;
+    case 9600:    sp = B9600;    break;
+    case 19200:   sp = B19200;   break;
+    case 38400:   sp = B38400;   break;
+    case 57600:   sp = B57600;   break;
+    case 115200:  sp = B115200;  break;
+    case 230400:  sp = B230400;  break;
 #ifdef __linux__
-    case 460800:
-        sp = B460800;
-        break;
-    case 500000:
-        sp = B500000;
-        break;
-    case 576000:
-        sp = B576000;
-        break;
-    case 921600:
-        sp = B921600;
-        break;
-    case 1000000:
-        sp = B1000000;
-        break;
-    case 1152000:
-        sp = B1152000;
-        break;
-    case 1500000:
-        sp = B1500000;
-        break;
-    case 2000000:
-        sp = B2000000;
-        break;
-    case 2500000:
-        sp = B2500000;
-        break;
-    case 3000000:
-        sp = B3000000;
-        break;
-    case 3500000:
-        sp = B3500000;
-        break;
-    case 4000000:
-        sp = B4000000;
-        break;
-
-    default:
-        sp = B38400;
-        non_standard = 1;
+    case 460800:  sp = B460800;  break;
+    case 500000:  sp = B500000;  break;
+    case 576000:  sp = B576000;  break;
+    case 921600:  sp = B921600;  break;
+    case 1000000: sp = B1000000; break;
+    case 1152000: sp = B1152000; break;
+    case 1500000: sp = B1500000; break;
+    case 2000000: sp = B2000000; break;
+    case 2500000: sp = B2500000; break;
+    case 3000000: sp = B3000000; break;
+    case 3500000: sp = B3500000; break;
+    case 4000000: sp = B4000000; break;
+    default:      sp = B38400; non_standard = 1;
 #else // __APPLE__ only
     // The IOSSIOSPEED ioctl can be used to set arbitrary baud rates
     // other than those specified by POSIX. The driver for the underlying serial hardware
@@ -253,7 +271,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     }
 #endif
     }
-
+    /* Accquire current port config */
     if (tcgetattr(sc->fd, &options) < 0)
         return -errno;
 
@@ -265,8 +283,6 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     options.c_cflag &= (tcflag_t) ~(HUPCL);
 
     options.c_cflag |= CREAD | CLOCAL;
-
-#define HAS_OPTION(a) (strchr (mode_string, a) != NULL || strchr (mode_string, tolower(a)) != NULL)
 
     // parity
     if (HAS_OPTION ('N'))
@@ -347,8 +363,8 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     }
 #endif
     return 0;
-#endif
 }
+#endif
 
 int simple_uart_close(struct simple_uart *sc)
 {
@@ -417,10 +433,13 @@ int simple_uart_has_data(struct simple_uart *sc)
 
 #ifdef WIN32
     COMSTAT cs;
+    DWORD r;
     if (!ClearCommError(sc->port, NULL, &cs)) {
         return 0;
     }
-    return cs.cbInQue;
+    r = cs.cbInQue;
+    if (r > INT_MAX) r = INT_MAX;
+    return (int)r;
 #else
     int bytes_available;
     if (ioctl(sc->fd, FIONREAD, &bytes_available) < 0)
@@ -436,12 +455,11 @@ unsigned int simple_uart_set_character_delay(struct simple_uart *sc, unsigned in
     return old_delay;
 }
 
-ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
+ssize_t simple_uart_list(char ***namesp)
 {
 #if defined(__linux__) || defined(__APPLE__)
     glob_t g;
     char **names = NULL;
-    char **description = NULL;
     size_t count = 0;
 
 #ifdef __linux__
@@ -474,10 +492,7 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
             globfree(&g);
         }
     }
-
     *namesp = names;
-    *descriptionp = description;
-
     return (ssize_t) count;
 
 #else
@@ -489,7 +504,7 @@ ssize_t simple_uart_list(char ***namesp, char ***descriptionp)
         char target[255];
         sprintf(buffer, "COM%d", i + 1);
         if (QueryDosDevice(buffer, target, sizeof(target)) > 0) {
-            char **new_names = realloc(names, (pos + 1) * sizeof (char *));
+            char **new_names = realloc(names, (DWORD)(pos + 1) * sizeof (char *));
             if (!new_names)
                 continue;
             names = new_names;
@@ -528,11 +543,11 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
     return 0;
 }
 
-ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, int timeout)
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_len, uint64_t ms_timeout)
 {
-    int pos = 0;
-    int last = mseconds();
-    int now = mseconds();
+    int      pos = 0;
+    uint64_t last = mseconds();
+    uint64_t now = mseconds();
 
     if (!buffer || max_len == 0)
         return -EINVAL;
@@ -555,7 +570,7 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
             }
         }
         now = mseconds();
-    } while (pos < max_len - 1 && now - last < timeout);
+    } while (pos < max_len - 1 && now - last < ms_timeout);
 
     /* If we got a carriage return + line feed, just collapse them */
     while (pos > 0 && (buffer[pos - 1] == '\r' || buffer[pos - 1] == '\n')) {
@@ -563,7 +578,7 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
         pos--;
     }
 
-    if (now - last >= timeout)
+    if (now - last >= ms_timeout)
         return -ETIMEDOUT;
 
     return pos;
@@ -618,9 +633,12 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
     }
 #else
     DWORD status;
-    if (!GetCommModemStatus(uart->port, &status))
-        return -GetLastError();
-
+    DWORD r;
+    if (!GetCommModemStatus(uart->port, &status)) {
+        r = -GetLastError();
+        if (r > INT_MAX) r = INT_MAX;
+        return (int)r;
+    }
     switch (pin) {
     case SIMPLE_UART_CTS:
         return (status & MS_CTS_ON) ? 1 : 0;
@@ -660,6 +678,7 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     return 0;
 #else
     bool res;
+    DWORD r;
     switch(pin) {
     case SIMPLE_UART_RTS:
         res = EscapeCommFunction(uart->port, high ? SETRTS : CLRRTS);
@@ -670,8 +689,11 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     default:
         return -EINVAL;
     }
-    if (!res)
-        return -GetLastError();
+    if (!res) {
+        r = -GetLastError();
+        if (r > INT_MAX) r = INT_MAX;
+        return (int)r;
+    }
     return 0;
 #endif
 }
@@ -682,8 +704,12 @@ int simple_uart_flush(struct simple_uart *uart)
     if (tcdrain(uart->fd) < 0)
         return -errno;
 #else
-    if (!FlushFileBuffers(uart->port))
-        return -GetLastError();
+    DWORD r;
+    if (!FlushFileBuffers(uart->port)) {
+        r = -GetLastError();
+        if (r > INT_MAX) r = INT_MAX;
+        return (int)r;
+    }
 #endif
     return 0;
 }

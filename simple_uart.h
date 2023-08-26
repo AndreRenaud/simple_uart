@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef WIN32
 #include <windows.h>
@@ -26,7 +27,7 @@ enum {
 // ie: /dev/ttyS0 etc... (or COM1: on Win32)
 // Returns the number of items in the list.
 // Caller is responsible for free'ing each name/description and the overall list
-ssize_t simple_uart_list(char ***namesp, char ***descriptionp);
+ssize_t simple_uart_list(char ***namesp);
 
 /**
  * Opens a uart, either by device name, or if that fails it will search
@@ -78,7 +79,7 @@ int simple_uart_send_break(struct simple_uart *uart);
  * Read data until either a line ending (carriage return/line feed) is seen,
  * or a timeout occurs
  */
-ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
+ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, uint64_t ms_timeout);
 
 #ifdef __cplusplus
 }
