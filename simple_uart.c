@@ -167,7 +167,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     if (!GetCommState (sc->port, &options)) {
         ero = -GetLastError();
         if (ero > INT_MAX)
-            ero = INT_MAX;
+            return -1;
         return (int) ero;
     }
     /* parse mode string */
@@ -188,7 +188,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     } else {
         options.StopBits = ONESTOPBIT;
     }
-        // Disable flushing the input and output queues when generating signals for the INT, QUIT, and SUSP characters.
+        // TODO: Disable flushing the input and output queues when generating signals for the INT, QUIT, and SUSP characters.
 //    if (HAS_OPTION('W')) {
 //        options.c_lflag |= NOFLSH;
 //  }
@@ -214,7 +214,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     if (!SetCommState (sc->port, &options)) {
         ero = -GetLastError();
         if (ero > INT_MAX)
-            ero = INT_MAX;
+            return -1;
         return (int) ero;
     }
     /* graceful end */
