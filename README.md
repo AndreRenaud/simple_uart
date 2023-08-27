@@ -22,8 +22,8 @@ Please submit a bug report if this does not work.
 ssize_t simple_uart_list(char ***namesp);
 ```
 
-List available UART ports and descriptions.
-It is the callers responsibility to free each element in ```namesp``` after calling, as well as the top-level pointers themselves.
+List available UART ports.
+It is the callers responsibility to free each element in *namesp* after calling, as well as the top-level pointers themselves.
 
 #### Arguments:
 Argument | Details
