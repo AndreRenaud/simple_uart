@@ -19,36 +19,32 @@ Please submit a bug report if this does not work.
 
 ## [API](./simple_uart.h)
 ```c
-ssize_t simple_uart_list(char ***namesp, char ***descriptionp);
+ssize_t simple_uart_list(char ***namesp);
 ```
 
 List available UART ports and descriptions.
-It is the callers responsibility to free each element in namesp & descriptionsp after calling, as well as the top-level pointers themselves.
+It is the callers responsibility to free each element in ```namesp``` after calling, as well as the top-level pointers themselves.
 
 #### Arguments:
 Argument | Details
 -------- | -------
 *namesp* | Pointer to a list of UART devices to be returned
-*descriptionp* | Pointer to a list of UART description strings to be filled in (optional)
 
 #### Return:
-On success the number of elements in the *namesp* and *descriptionsp* lists will be returned. *< 0* on failure.
+On success the number of elements in the *namesp* list will be returned. *< 0* on failure.
 
 #### Example:
 ```c
 char **names;
-char **descriptions;
-ssize_t nuarts = simple_uart_list(&names, &descriptions);
+ssize_t nuarts = simple_uart_list(&names);
 for (ssize_t i = 0; i < nuarts; i++) {
-	printf("Port %d: %s: %s\n", i, names[i], (descriptions && descriptions[i]) ? descriptions[i] : "unknown");
+    printf("Port %d: %s\n", i, names[i]);
 }
 
-for (int i = 0; i < nuarts; i++) {
-	if (names[i]) free(names[i]);
-	if (descriptions && descriptions[i]) free(descriptions[i]);
+for (ssize_t i = 0; i < nuarts; i++) {
+    if (names[i]) free(names[i]);
 }
 free(names);
-if (descriptions) free(descriptions);
 ```
 
 ```c
