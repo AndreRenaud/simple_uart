@@ -22,7 +22,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: build
-      run: make CC=cl
+      run: |
+        call "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build/vcvars64.bat"
+        make CC=cl
   macos:
     runs-on: macos-latest
     steps:
