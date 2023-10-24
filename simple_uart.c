@@ -463,7 +463,7 @@ ssize_t simple_uart_list(char ***namesp)
     size_t count = 0;
 
 #ifdef __linux__
-    char *path_globs[] = {"/sys/class/tty/ttyS[0-9]*", "/sys/class/tty/ttyUSB[0-9]*", "/sys/class/tty/ttyACM[0-9]*"};
+    char *path_globs[] = {"/sys/class/tty/ttyS[0-9]*", "/dev/ttyUSB*", "/dev/ttyACM*"};
 #endif
 
 #ifdef __APPLE__
