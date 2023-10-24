@@ -170,6 +170,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
             return -1;
         return (int) ero;
     }
+    options.BaudRate = speed;
     /* parse mode string */
         // parity
     if (HAS_OPTION ('N')) {         // no parity
