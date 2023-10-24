@@ -26,18 +26,16 @@ int main(int argc, char *argv[])
 			case 'f': flags = optarg; break;
 			case 'l': {
 				char **names;
-				char **descriptions;
-				int len = simple_uart_list(&names, &descriptions);
-				printf("Found %d ports\n", len);
-				for (int i = 0; i < len; i++) {
-					printf("%2d) %-40s - %s\n", i, names[i], (descriptions && descriptions[i]) ? descriptions[i] : "unknown");
+				ssize_t nuarts = simple_uart_list(&names);
+				printf("Found %d ports\n", nuarts);
+				for (ssize_t i = 0; i < nuarts; i++) {
+					printf("Port %d: %s\n", i, names[i]);
 				}
-				for (int i = 0; i < len; i++) {
+
+				for (ssize_t i = 0; i < nuarts; i++) {
 					if (names[i]) free(names[i]);
-					if (descriptions && descriptions[i]) free(descriptions[i]);
 				}
 				free(names);
-				if (descriptions) free(descriptions);
 				exit(0);
 			}
 			default:
