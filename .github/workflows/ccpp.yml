@@ -7,10 +7,8 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-
+  ubuntu:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
     - name: setup
@@ -18,4 +16,19 @@ jobs:
     - name: build
       run: make
     - name: test
-      run: make test
+      run: make check test
+  windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: build
+      shell: cmd
+      run: |
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        make CC=cl simple_uart.o
+  macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: build
+      run: make

@@ -2,16 +2,15 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
-#include <regex.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
 #include <stdint.h>
 
-#ifndef WIN32
+#ifndef _WIN32
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -60,7 +59,7 @@
 
 struct simple_uart
 {
-#ifdef WIN32
+#ifdef _WIN32
     HANDLE port;
 #else
     int fd;
@@ -72,7 +71,7 @@ struct simple_uart
 ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 {
     ssize_t r = 0;
-#ifdef WIN32
+#ifdef _WIN32
     COMMTIMEOUTS commTimeout;
 
     /* Get the comm timouts */
@@ -117,7 +116,7 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 
 ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len)
 {
-#ifdef WIN32
+#ifdef _WIN32
     ssize_t r = 0;
     /* TODO: Support char_delay_us */
     if (len > ULONG_MAX) len = ULONG_MAX;   // avoid overflow at typecast
@@ -154,7 +153,7 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
 /* Help macros */
 #define HAS_OPTION(a) (strchr (mode_string, a) != NULL || strchr (mode_string, tolower(a)) != NULL)
 
-#ifdef WIN32
+#ifdef _WIN32
 static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string)   // Windows Port config
 {
     /* Variables */
@@ -170,6 +169,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
             return -1;
         return (int) ero;
     }
+    options.BaudRate = speed;
     /* parse mode string */
         // parity
     if (HAS_OPTION ('N')) {         // no parity
@@ -385,7 +385,7 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
 {
     struct simple_uart *retval;
 
-#ifdef WIN32
+#ifdef _WIN32
     HANDLE port;
     DWORD mode = GENERIC_READ | GENERIC_WRITE;
     char full_port_name[32];
@@ -431,7 +431,7 @@ int simple_uart_has_data(struct simple_uart *sc)
     if (!sc)
         return 0;
 
-#ifdef WIN32
+#ifdef _WIN32
     COMSTAT cs;
     DWORD r;
     if (!ClearCommError(sc->port, NULL, &cs)) {
@@ -599,7 +599,7 @@ int simple_uart_send_break(struct simple_uart *uart)
 #endif
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 HANDLE simple_uart_get_handle(struct simple_uart *uart)
 {
     return uart->port;

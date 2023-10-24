@@ -8,8 +8,10 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <windows.h>
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #endif
 
 struct simple_uart;
@@ -54,7 +56,7 @@ int simple_uart_has_data(struct simple_uart *uart);
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...);
 
 int simple_uart_get_fd(struct simple_uart *uart);
-#ifdef WIN32
+#ifdef _WIN32
 HANDLE simple_uart_get_handle(struct simple_uart *uart);
 #endif
 
