@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,6 @@
 #include <libgen.h>
 #else
 #include <windows.h>
-#include <limits.h>
 #endif
 
 #ifdef __linux__
@@ -123,7 +123,7 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
     WriteFile (sc->port, buffer, (DWORD)len, (LPDWORD)&r, NULL);
 #else
     ssize_t r;
-    if (len > _SC_SSIZE_MAX) len = _SC_SSIZE_MAX;   // avoid overflow at cast to signed type
+    if (len > SSIZE_MAX) len = SSIZE_MAX;   // avoid overflow at cast to signed type
     if (sc->char_delay_us > 0) {
         const uint8_t *buf8 = buffer;
         for (size_t i = 0; i < len; i++) {
@@ -474,7 +474,7 @@ ssize_t simple_uart_list(char ***namesp)
         if (glob(path_globs[path], 0, NULL, &g) >= 0) {
             char buffer[100];
             char **new_names;
-            if ((count + g.gl_pathc) > _SC_SSIZE_MAX) break;    // abort to avoid memory leakage
+            if ((count + g.gl_pathc) > SSIZE_MAX) break;    // abort to avoid memory leakage
             new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
             if (!new_names)
             {

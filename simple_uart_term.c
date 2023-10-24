@@ -27,9 +27,9 @@ int main(int argc, char *argv[])
 			case 'l': {
 				char **names;
 				ssize_t nuarts = simple_uart_list(&names);
-				printf("Found %d ports\n", nuarts);
+				printf("Found %zd ports\n", nuarts);
 				for (ssize_t i = 0; i < nuarts; i++) {
-					printf("Port %d: %s\n", i, names[i]);
+					printf("Port %zd: %s\n", i, names[i]);
 				}
 
 				for (ssize_t i = 0; i < nuarts; i++) {
