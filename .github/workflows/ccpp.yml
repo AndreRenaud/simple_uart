@@ -7,21 +7,25 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
+  ubuntu:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Setup Ubuntu
-      if: startsWith(matrix.os, 'ubuntu')
+    - name: setup
       run: sudo apt-get update && sudo apt-get -f install socat cppcheck
     - name: build
       run: make
     - name: test
-      if: startsWith(matrix.os, 'ubuntu')
       run: make check test
+  windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: build
+      run: make CC=cl
+  macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: build
+      run: make
