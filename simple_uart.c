@@ -9,6 +9,12 @@
 #include <time.h>
 #include <stdint.h>
 
+#ifdef _WIN32
+#ifndef WIN32
+#define WIN32
+#endif
+#endif
+
 #ifndef WIN32
 #include <unistd.h>
 #include <sys/types.h>
