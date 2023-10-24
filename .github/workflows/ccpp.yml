@@ -17,9 +17,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: setup
+    - name: Setup Ubuntu
+      if: startsWith(matrix.os, 'ubuntu')
       run: sudo apt-get update && sudo apt-get -f install socat cppcheck
     - name: build
       run: make
     - name: test
+      if: startsWith(matrix.os, 'ubuntu')
       run: make test
