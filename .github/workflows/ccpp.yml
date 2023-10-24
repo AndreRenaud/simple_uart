@@ -24,4 +24,4 @@ jobs:
       run: make
     - name: test
       if: startsWith(matrix.os, 'ubuntu')
-      run: make test
+      run: make check test
