@@ -25,7 +25,10 @@
 #include <netdb.h>
 #include <libgen.h>
 #else
+#define INITGUID        // required for GUID_DEVCLASS_PORTS, otherwise linker error @see https://stackoverflow.com/questions/14762154/enumerating-battery-devices-c-windows
 #include <windows.h>
+#include <devguid.h>    // GUID_DEVCLASS_PORTS
+#include <Setupapi.h>   // Devices: SetupDiGetClassDevs
 #endif
 
 #ifdef __linux__
@@ -516,6 +519,111 @@ ssize_t simple_uart_list(char ***namesp)
     *namesp = names;
     return pos;
 #endif
+}
+
+int simple_uart_describe(const char *uart_device, char ***keyp, char ***valp)
+{
+    char **keys = NULL; // init
+    char **vals = NULL;
+#ifdef _WIN32
+    HDEVINFO    deviceInfoSet;
+    DWORD       i, r;
+    char        buffer[256];
+    char        buf2[256];
+    int         intNameMatch = 0;
+    char        *matchp;
+    int         count = 0;
+
+    /*  Get handle of device information
+     *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsa
+     *    *A: Ansi Function, *W: Unicode function
+     */
+    deviceInfoSet = SetupDiGetClassDevsA((const GUID *) &GUID_DEVCLASS_PORTS, NULL, NULL, DIGCF_PRESENT);
+    if ( INVALID_HANDLE_VALUE == deviceInfoSet ) {
+        return -1;
+    }
+    /* get device info */
+    SP_DEVINFO_DATA deviceInfoData;
+    deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+    /*  iterate over DEVCLASS_PORTS elements
+     *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceregistrypropertya
+     */
+    i = 0;
+    while (SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData)) {
+        /* get user friendly name */
+        if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_FRIENDLYNAME, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
+            /* match by name */
+            if (strstr(buffer, uart_device) != NULL) {  // mark as name hit and leave
+                intNameMatch = 1;
+                break;
+            }
+        } else {
+            r = -GetLastError();
+            if (r > INT_MAX) r = INT_MAX;
+            return (int)r;
+        }
+        ++i;
+    }
+    /* no match by name */
+    if ( 0 == intNameMatch )
+        return 0;
+    /*  acquire HW ID
+     *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
+     */
+    if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
+        /* match VID */
+        matchp = strstr(buffer, "VID_");
+        if (matchp != NULL) {
+            /* allocate memory for new key/val pair */
+            char **new_keys = realloc(keys, (DWORD)(count + 1) * sizeof (char *));
+            char **new_vals = realloc(vals, (DWORD)(count + 1) * sizeof (char *));
+            if ( new_keys && new_vals ) {
+                keys = new_keys;
+                vals = new_vals;
+                /* add key 'VID' */
+                strcpy(buf2, "VID");
+                keys[count] = malloc(strlen (buf2) + 1);
+                strcpy(keys[count], buf2);
+                /* extract VID from HWID string */
+                strncpy(buf2, matchp+4, 4); // copy 4 digit VID
+                buf2[4] = '\0';
+                vals[count] = malloc(strlen (buf2) + 1);
+                strcpy(vals[count], buf2);
+                /* next element */
+                count++;
+            }
+        }
+        /* match PID, named as DID */
+        matchp = strstr(buffer, "PID_");
+        if (matchp != NULL) {
+            /* allocate memory for new key/val pair */
+            char **new_keys = realloc(keys, (DWORD)(count + 1) * sizeof (char *));
+            char **new_vals = realloc(vals, (DWORD)(count + 1) * sizeof (char *));
+            if ( new_keys && new_vals ) {
+                keys = new_keys;
+                vals = new_vals;
+                /* add key 'DID' */
+                strcpy(buf2, "DID");
+                keys[count] = malloc(strlen (buf2) + 1);
+                strcpy(keys[count], buf2);
+                /* extract PID from HWID string */
+                strncpy(buf2, matchp+4, 4); // copy 4 digit VID
+                buf2[4] = '\0';
+                vals[count] = malloc(strlen (buf2) + 1);
+                strcpy(vals[count], buf2);
+                /* next element */
+                count++;
+            }
+        }
+    }
+    *keyp = keys;
+    *valp = vals;
+    return count;
+#else       // TODO
+
+
+#endif
+    return 0;
 }
 
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
