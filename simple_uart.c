@@ -524,8 +524,8 @@ ssize_t simple_uart_list(char ***namesp)
 int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
 {
     description[0] = '\0';  // empty string
-
-#ifdef _WIN32
+// Windows Implementation
+#if defined(_WIN32)
     HDEVINFO    deviceInfoSet;
     DWORD       i, r;
     char        buffer[256];
@@ -568,14 +568,78 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
      *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
      */
     if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
-        if ( !((strlen(buffer) + strlen(description) + 2) < max_desc_len) ) // check for enough memory, +2 '\n'
+        if ( !((strlen(buffer) + strlen(description) + 3) < max_desc_len) ) // check for enough memory, +3 '\n'
             return -1;
         strncpy(description+strlen(description), buffer, strlen(buffer)+1); // copy string
         description[strlen(description)+1] = '\0';
         description[strlen(description)] = '\n';    // every new property gets a new line
     }
     // Append next required property here
-#else       // TODO
+// Linux Implementation
+#elif defined(__linux__)
+    const char  *path_globs[] = {"/sys/bus/serial/devices/", "/sys/bus/usb/devices/usb*/"};
+    char        chrCmd[256];        // command buffer
+    char        chrDevPath[192];    // system path to UART device
+    char        chrRecUart[128];    // from OS extracted uart name
+    char        chrBuf[256];        // help buffer
+    FILE        *fHfind = NULL;     // file handle for find command
+    FILE        *fHprop = NULL;     // file handle for Property
+    char        chrUart[64];        // uart name
+    char        *pChrMatch;         // pointer to char match
+    int         intLoopBreak = 0;   // break out all loops
+
+    /* get uart name out of path */
+    pChrMatch = strrchr(uart, '/');
+    if ( NULL == pChrMatch )
+        return -1;
+    strncpy(chrUart, pChrMatch+1, sizeof(chrUart));
+    /* search for path */
+    for ( int i = 0; i < (int) (sizeof(path_globs) / sizeof(path_globs[0])); i++ ) {
+        snprintf(chrCmd, sizeof(chrCmd), "find %s -name dev", path_globs[i]);   // assemble command
+        fHfind = popen(chrCmd, "r");    // request OS
+        while ( (EOF != fscanf(fHfind, "%s", chrDevPath)) && ( 0 == intLoopBreak) ) {
+            /* remove '/dev' from end of path '/sys/bus/usb/devices/usb2/2-2/2-2:1.0/tty/ttyACM0/dev' */
+            pChrMatch = strrchr(chrDevPath, '/');
+            pChrMatch = strstr(pChrMatch, "/dev");
+            if (!pChrMatch) // skip null pointer write
+                continue;
+            *pChrMatch = '\0';
+            /* get name for match */
+            snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q name -p %s", chrDevPath); // assemble command
+            fHprop = popen(chrCmd, "r");    // request OS
+            if ( 1 != fscanf(fHprop, "%s", chrRecUart)) {   // expect on line
+                pclose(fHprop);
+                pclose(fHfind);
+                return -1;
+            }
+            /* check for name match */
+            if ( NULL != strstr(chrRecUart, chrUart) ) {
+                intLoopBreak = 1;
+                break;
+            }
+        }
+        if ( 0 != intLoopBreak ) {
+            break;
+        }
+    }
+    pclose(fHprop);
+    pclose(fHfind);
+    /* acquire hw info from OS */
+    snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q property -p %s", chrDevPath); // request uart properties
+    fHprop = popen(chrCmd, "r");    // request OS
+    while ( EOF != fscanf(fHprop, "%[^\n]\n", chrBuf) ) {   // "%[^\n]\n" -> read until new line
+        if ( (strlen(description) + strlen(chrBuf) + 3) < max_desc_len ) {
+            strncpy(description+strlen(description), chrBuf, strlen(chrBuf)+1);
+            description[strlen(description)+1] = '\0';
+            description[strlen(description)] = '\n';    // every new property gets a new line
+        } else {
+            pclose(fHprop);
+            return -1;
+        }
+    }
+    pclose(fHprop);
+// MacOS
+#else   // Volunteers for MacOS wanted
 
 
 #endif
