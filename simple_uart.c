@@ -521,18 +521,15 @@ ssize_t simple_uart_list(char ***namesp)
 #endif
 }
 
-int simple_uart_describe(const char *uart_device, char ***keyp, char ***valp)
+int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
 {
-    char **keys = NULL; // init
-    char **vals = NULL;
+    description[0] = '\0';  // empty string
+
 #ifdef _WIN32
     HDEVINFO    deviceInfoSet;
     DWORD       i, r;
     char        buffer[256];
-    char        buf2[256];
     int         intNameMatch = 0;
-    char        *matchp;
-    int         count = 0;
 
     /*  Get handle of device information
      *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsa
@@ -553,7 +550,7 @@ int simple_uart_describe(const char *uart_device, char ***keyp, char ***valp)
         /* get user friendly name */
         if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_FRIENDLYNAME, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
             /* match by name */
-            if (strstr(buffer, uart_device) != NULL) {  // mark as name hit and leave
+            if (strstr(buffer, uart) != NULL) {  // mark as name hit and leave
                 intNameMatch = 1;
                 break;
             }
@@ -571,54 +568,13 @@ int simple_uart_describe(const char *uart_device, char ***keyp, char ***valp)
      *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
      */
     if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
-        /* match VID */
-        matchp = strstr(buffer, "VID_");
-        if (matchp != NULL) {
-            /* allocate memory for new key/val pair */
-            char **new_keys = realloc(keys, (DWORD)(count + 1) * sizeof (char *));
-            char **new_vals = realloc(vals, (DWORD)(count + 1) * sizeof (char *));
-            if ( new_keys && new_vals ) {
-                keys = new_keys;
-                vals = new_vals;
-                /* add key 'VID' */
-                strcpy(buf2, "VID");
-                keys[count] = malloc(strlen (buf2) + 1);
-                strcpy(keys[count], buf2);
-                /* extract VID from HWID string */
-                strncpy(buf2, matchp+4, 4); // copy 4 digit VID
-                buf2[4] = '\0';
-                vals[count] = malloc(strlen (buf2) + 1);
-                strcpy(vals[count], buf2);
-                /* next element */
-                count++;
-            }
-        }
-        /* match PID, named as DID */
-        matchp = strstr(buffer, "PID_");
-        if (matchp != NULL) {
-            /* allocate memory for new key/val pair */
-            char **new_keys = realloc(keys, (DWORD)(count + 1) * sizeof (char *));
-            char **new_vals = realloc(vals, (DWORD)(count + 1) * sizeof (char *));
-            if ( new_keys && new_vals ) {
-                keys = new_keys;
-                vals = new_vals;
-                /* add key 'DID' */
-                strcpy(buf2, "DID");
-                keys[count] = malloc(strlen (buf2) + 1);
-                strcpy(keys[count], buf2);
-                /* extract PID from HWID string */
-                strncpy(buf2, matchp+4, 4); // copy 4 digit VID
-                buf2[4] = '\0';
-                vals[count] = malloc(strlen (buf2) + 1);
-                strcpy(vals[count], buf2);
-                /* next element */
-                count++;
-            }
-        }
+        if ( !((strlen(buffer) + strlen(description) + 2) < max_desc_len) ) // check for enough memory, +2 '\n'
+            return -1;
+        strncpy(description+strlen(description), buffer, strlen(buffer)+1); // copy string
+        description[strlen(description)+1] = '\0';
+        description[strlen(description)] = '\n';    // every new property gets a new line
     }
-    *keyp = keys;
-    *valp = vals;
-    return count;
+    // Append next required property here
 #else       // TODO
 
 
