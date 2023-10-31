@@ -586,7 +586,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     FILE        *fH2 = NULL;        // file handle 2, used for 'udevadm'
     char        chrUart[64];        // uart name
     char        *pChrMatch;         // pointer to char match
-    int         intLoopBreak = 0;   // break out all loops
+    int         intMatchDev = 0;    // device on machine matched
 
     /* check if 'udevadm' is as command available */
     strcpy(chrCmd, "command -v udevadm");
@@ -608,7 +608,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     for ( int i = 0; i < (int) (sizeof(path_globs) / sizeof(path_globs[0])); i++ ) {
         snprintf(chrCmd, sizeof(chrCmd), "find %s -name dev", path_globs[i]);   // assemble command
         fH1 = popen(chrCmd, "r");   // request OS
-        while ( (EOF != fscanf(fH1, "%s", chrDevPath)) && ( 0 == intLoopBreak) ) {
+        while ( (EOF != fscanf(fH1, "%s", chrDevPath)) && ( 0 == intMatchDev) ) {
             /* remove '/dev' from end of path '/sys/bus/usb/devices/usb2/2-2/2-2:1.0/tty/ttyACM0/dev' */
             pChrMatch = strrchr(chrDevPath, '/');
             pChrMatch = strstr(pChrMatch, "/dev");
@@ -625,16 +625,20 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             }
             /* check for name match */
             if ( NULL != strstr(chrRecUart, chrUart) ) {
-                intLoopBreak = 1;
+                intMatchDev = 1;
                 break;
             }
         }
-        if ( 0 != intLoopBreak ) {
+        if ( 0 != intMatchDev ) {
             break;
         }
     }
     pclose(fH2);
     pclose(fH1);
+    /* device found? */
+    if ( 0 == intMatchDev ) {
+        return -1;
+    }
     /* acquire hw info from OS */
     snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q property -p %s", chrDevPath); // request uart properties
     fH2 = popen(chrCmd, "r");   // request OS
