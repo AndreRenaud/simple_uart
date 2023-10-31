@@ -582,12 +582,23 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     char        chrDevPath[192];    // system path to UART device
     char        chrRecUart[128];    // from OS extracted uart name
     char        chrBuf[256];        // help buffer
-    FILE        *fHfind = NULL;     // file handle for find command
-    FILE        *fHprop = NULL;     // file handle for Property
+    FILE        *fH1 = NULL;        // file handle 1, used for 'find' and 'command'
+    FILE        *fH2 = NULL;        // file handle 2, used for 'udevadm'
     char        chrUart[64];        // uart name
     char        *pChrMatch;         // pointer to char match
     int         intLoopBreak = 0;   // break out all loops
 
+    /* check if 'udevadm' is as command available */
+    strcpy(chrCmd, "command -v udevadm");
+    fH1 = popen(chrCmd, "r");   // request OS for tool path, if empty no tool
+    if ( 1 != fscanf(fH1, "%s", chrBuf)) {  // expect on line
+        pclose(fH1);
+        return -1;
+    }
+    if ( 0 == strlen(chrBuf) ) {    // no path, no tool
+        return -1;
+    }
+    pclose(fH1);
     /* get uart name out of path */
     pChrMatch = strrchr(uart, '/');
     if ( NULL == pChrMatch )
@@ -596,8 +607,8 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     /* search for path */
     for ( int i = 0; i < (int) (sizeof(path_globs) / sizeof(path_globs[0])); i++ ) {
         snprintf(chrCmd, sizeof(chrCmd), "find %s -name dev", path_globs[i]);   // assemble command
-        fHfind = popen(chrCmd, "r");    // request OS
-        while ( (EOF != fscanf(fHfind, "%s", chrDevPath)) && ( 0 == intLoopBreak) ) {
+        fH1 = popen(chrCmd, "r");   // request OS
+        while ( (EOF != fscanf(fH1, "%s", chrDevPath)) && ( 0 == intLoopBreak) ) {
             /* remove '/dev' from end of path '/sys/bus/usb/devices/usb2/2-2/2-2:1.0/tty/ttyACM0/dev' */
             pChrMatch = strrchr(chrDevPath, '/');
             pChrMatch = strstr(pChrMatch, "/dev");
@@ -606,10 +617,10 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             *pChrMatch = '\0';
             /* get name for match */
             snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q name -p %s", chrDevPath); // assemble command
-            fHprop = popen(chrCmd, "r");    // request OS
-            if ( 1 != fscanf(fHprop, "%s", chrRecUart)) {   // expect on line
-                pclose(fHprop);
-                pclose(fHfind);
+            fH2 = popen(chrCmd, "r");   // request OS
+            if ( 1 != fscanf(fH2, "%s", chrRecUart)) {  // expect on line
+                pclose(fH2);
+                pclose(fH1);
                 return -1;
             }
             /* check for name match */
@@ -622,22 +633,22 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             break;
         }
     }
-    pclose(fHprop);
-    pclose(fHfind);
+    pclose(fH2);
+    pclose(fH1);
     /* acquire hw info from OS */
     snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q property -p %s", chrDevPath); // request uart properties
-    fHprop = popen(chrCmd, "r");    // request OS
-    while ( EOF != fscanf(fHprop, "%[^\n]\n", chrBuf) ) {   // "%[^\n]\n" -> read until new line
+    fH2 = popen(chrCmd, "r");   // request OS
+    while ( EOF != fscanf(fH2, "%[^\n]\n", chrBuf) ) {  // "%[^\n]\n" -> read until new line
         if ( (strlen(description) + strlen(chrBuf) + 3) < max_desc_len ) {
             strncpy(description+strlen(description), chrBuf, strlen(chrBuf)+1);
             description[strlen(description)+1] = '\0';
             description[strlen(description)] = '\n';    // every new property gets a new line
         } else {
-            pclose(fHprop);
+            pclose(fH2);
             return -1;
         }
     }
-    pclose(fHprop);
+    pclose(fH2);
 // MacOS
 #else   // Volunteers for MacOS wanted
 
