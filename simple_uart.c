@@ -523,13 +523,15 @@ ssize_t simple_uart_list(char ***namesp)
 
 int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
 {
+    int     intMatchUart = 0;   // device on machine matched
+    char    chrBuf[256];        // help buffer
+
     description[0] = '\0';  // empty string
+
 // Windows Implementation
 #if defined(_WIN32)
     HDEVINFO    deviceInfoSet;
     DWORD       i, r;
-    char        buffer[256];
-    int         intNameMatch = 0;
 
     /*  Get handle of device information
      *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsa
@@ -548,10 +550,10 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     i = 0;
     while (SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData)) {
         /* get user friendly name */
-        if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_FRIENDLYNAME, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
+        if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_FRIENDLYNAME, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
             /* match by name */
-            if (strstr(buffer, uart) != NULL) {  // mark as name hit and leave
-                intNameMatch = 1;
+            if (strstr(chrBuf, uart) != NULL) {  // mark as name hit and leave
+                intMatchUart = 1;
                 break;
             }
         } else {
@@ -562,15 +564,15 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
         ++i;
     }
     /* no match by name */
-    if ( 0 == intNameMatch )
+    if ( 0 == intMatchUart )
         return 0;
     /*  acquire HW ID
      *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
      */
-    if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)buffer, sizeof(buffer), NULL)) {
-        if ( !((strlen(buffer) + strlen(description) + 3) < max_desc_len) ) // check for enough memory, +3 '\n'
+    if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
+        if ( !((strlen(chrBuf) + strlen(description) + 3) < max_desc_len) ) // check for enough memory, +3 '\n'
             return -1;
-        strncpy(description+strlen(description), buffer, strlen(buffer)+1); // copy string
+        strncpy(description+strlen(description), chrBuf, strlen(chrBuf)+1); // copy string
         description[strlen(description)+1] = '\0';
         description[strlen(description)] = '\n';    // every new property gets a new line
     }
@@ -581,12 +583,10 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     char        chrCmd[256];        // command buffer
     char        chrDevPath[192];    // system path to UART device
     char        chrRecUart[128];    // from OS extracted uart name
-    char        chrBuf[256];        // help buffer
     FILE        *fH1 = NULL;        // file handle 1, used for 'find' and 'command'
     FILE        *fH2 = NULL;        // file handle 2, used for 'udevadm'
     char        chrUart[64];        // uart name
     char        *pChrMatch;         // pointer to char match
-    int         intMatchDev = 0;    // device on machine matched
 
     /* check if 'udevadm' is as command available */
     strcpy(chrCmd, "command -v udevadm");
@@ -608,7 +608,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     for ( int i = 0; i < (int) (sizeof(path_globs) / sizeof(path_globs[0])); i++ ) {
         snprintf(chrCmd, sizeof(chrCmd), "find %s -name dev", path_globs[i]);   // assemble command
         fH1 = popen(chrCmd, "r");   // request OS
-        while ( (EOF != fscanf(fH1, "%s", chrDevPath)) && ( 0 == intMatchDev) ) {
+        while ( (EOF != fscanf(fH1, "%s", chrDevPath)) && ( 0 == intMatchUart) ) {
             /* remove '/dev' from end of path '/sys/bus/usb/devices/usb2/2-2/2-2:1.0/tty/ttyACM0/dev' */
             pChrMatch = strrchr(chrDevPath, '/');
             pChrMatch = strstr(pChrMatch, "/dev");
@@ -625,18 +625,18 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             }
             /* check for name match */
             if ( NULL != strstr(chrRecUart, chrUart) ) {
-                intMatchDev = 1;
+                intMatchUart = 1;
                 break;
             }
         }
-        if ( 0 != intMatchDev ) {
+        if ( 0 != intMatchUart ) {
             break;
         }
     }
     pclose(fH2);
     pclose(fH1);
     /* device found? */
-    if ( 0 == intMatchDev ) {
+    if ( 0 == intMatchUart ) {
         return -1;
     }
     /* acquire hw info from OS */
