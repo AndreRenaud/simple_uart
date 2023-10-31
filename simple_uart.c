@@ -590,15 +590,9 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
 
     /* check if 'udevadm' is as command available */
     strcpy(chrCmd, "command -v udevadm");
-    fH1 = popen(chrCmd, "r");   // request OS for tool path, if empty no tool
-    if ( 1 != fscanf(fH1, "%s", chrBuf)) {  // expect on line
-        pclose(fH1);
+    fH1 = popen(chrCmd, "r");   // request OS for tool path, if ero tool not available
+    if ( WEXITSTATUS(pclose(fH1)) )
         return -1;
-    }
-    if ( 0 == strlen(chrBuf) ) {    // no path, no tool
-        return -1;
-    }
-    pclose(fH1);
     /* get uart name out of path */
     pChrMatch = strrchr(uart, '/');
     if ( NULL == pChrMatch )
@@ -618,7 +612,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             /* get name for match */
             snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q name -p %s", chrDevPath); // assemble command
             fH2 = popen(chrCmd, "r");   // request OS
-            if ( 1 != fscanf(fH2, "%s", chrRecUart)) {  // expect on line
+            if ( 1 != fscanf(fH2, "%s", chrRecUart)) {  // expect one line
                 pclose(fH2);
                 pclose(fH1);
                 return -1;
@@ -633,11 +627,11 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             break;
         }
     }
-    pclose(fH2);
-    pclose(fH1);
+    if ( WEXITSTATUS(pclose(fH1)) || WEXITSTATUS(pclose(fH2)) ) // fail in pipe
+        return -1;
     /* device found? */
     if ( 0 == intMatchUart ) {
-        return -1;
+        return 0;
     }
     /* acquire hw info from OS */
     snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q property -p %s", chrDevPath); // request uart properties
@@ -652,7 +646,8 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
             return -1;
         }
     }
-    pclose(fH2);
+    if ( WEXITSTATUS(pclose(fH2)) )
+        return -1;
 // MacOS
 #else   // Volunteers for MacOS wanted
 
