@@ -601,7 +601,9 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
 #elif defined(__linux__)
     char    unresolvedPath[PATH_MAX];   // symbolic path to TTY device
     char    basePath[PATH_MAX];         // path to read out file
-
+    char    pathUp[32];                 // number of hierarchy level ups
+    char    *ptrHelp;                   // help pointer
+    int     intCnt = 0;                 // counts occurrence of device name
     /* assemble real path */
     strncpy(unresolvedPath, "/sys/class/tty/", sizeof(unresolvedPath));
     strncpy(unresolvedPath+strlen(unresolvedPath), basename((char *)uart), sizeof(unresolvedPath)-strlen(unresolvedPath));
@@ -609,9 +611,20 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
         return -1;
     }
     // result: /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2/2-2:1.0/tty/ttyACM0
-    /* drop last three subdirs */
+    //         /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2/2-2:1.0/ttyUSB0/tty/ttyUSB0
+    /* determine number of dropped subdirs */
+    ptrHelp = strstr(basePath, basename((char *)uart));
+    while ( NULL != ptrHelp ) {
+        ++intCnt;
+        ptrHelp = strstr(ptrHelp+1, basename((char *)uart));
+    }
+    strncpy(pathUp, "/../../", sizeof(pathUp));
+    for ( int i = 0; i < intCnt; i++ ) {
+        strncpy(pathUp+strlen(pathUp), "../", sizeof(pathUp)-strlen(pathUp));   // append '../' for going up
+    }
+    /* drop counted number of subdirs */
     strncpy(unresolvedPath, basePath, sizeof(unresolvedPath));
-    strncpy(unresolvedPath+strlen(unresolvedPath), "/../../../", sizeof(unresolvedPath)-strlen(unresolvedPath));
+    strncpy(unresolvedPath+strlen(unresolvedPath), pathUp, sizeof(unresolvedPath)-strlen(unresolvedPath));
     if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve relative path
         return -1;
     }
