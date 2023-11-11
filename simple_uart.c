@@ -610,7 +610,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     }
     // result: /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2/2-2:1.0/tty/ttyACM0
     /* drop last three subdirs */
-    strncpy(unresolvedPath, basePath, sizeof(unresolvedPath));
+    strncpy(unresolvedPath, basePath, sizeof(unresolvedPath)+1);
     strncpy(unresolvedPath+strlen(unresolvedPath), "/../../../", sizeof(unresolvedPath)-strlen(unresolvedPath));
     if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve relative path
         return -1;
