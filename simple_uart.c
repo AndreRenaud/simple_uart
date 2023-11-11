@@ -369,6 +369,26 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 }
 #endif
 
+#if defined(__linux__)
+static bool readfile(const char *dir, const char *filename, char *result, size_t max_result_len) {
+    FILE *fp;
+    size_t len = 0;
+    char path[1024];
+    strncpy(path, dir, sizeof(path));
+    strncpy(path+strlen(path), "/", sizeof(path)-strlen(path));
+    strncpy(path+strlen(path), filename, sizeof(path)-strlen(path));
+    result[0] = '\0';
+    if ((fp = fopen(path, "rb")) != NULL) {
+        len = fread(result, 1, max_result_len - 1, fp);
+        if (len) {
+            result[len - 1] = '\0';
+        }
+        fclose(fp);
+    }
+    return len != 0;
+}
+#endif
+
 int simple_uart_close(struct simple_uart *sc)
 {
     if (!sc)
@@ -523,13 +543,13 @@ ssize_t simple_uart_list(char ***namesp)
 
 int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
 {
-    int     intMatchUart = 0;   // device on machine matched
     char    chrBuf[256];        // help buffer
 
     description[0] = '\0';  // empty string
 
 // Windows Implementation
 #if defined(_WIN32)
+    int         intMatchUart = 0;   // device on machine matched
     HDEVINFO    deviceInfoSet;
     DWORD       i, r;
 
@@ -579,75 +599,43 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     // Append next required property here
 // Linux Implementation
 #elif defined(__linux__)
-    const char  *path_globs[] = {"/sys/bus/serial/devices/", "/sys/bus/usb/devices/usb*/"};
-    char        chrCmd[256];        // command buffer
-    char        chrDevPath[192];    // system path to UART device
-    char        chrRecUart[128];    // from OS extracted uart name
-    FILE        *fH1 = NULL;        // file handle 1, used for 'find' and 'command'
-    FILE        *fH2 = NULL;        // file handle 2, used for 'udevadm'
-    char        chrUart[64];        // uart name
-    char        *pChrMatch;         // pointer to char match
+    char    unresolvedPath[PATH_MAX];   // symbolic path to TTY device
+    char    basePath[PATH_MAX];         // path to read out file
 
-    /* check if 'udevadm' is as command available */
-    strcpy(chrCmd, "command -v udevadm");
-    fH1 = popen(chrCmd, "r");   // request OS for tool path, if ero tool not available
-    if ( WEXITSTATUS(pclose(fH1)) )
+    /* assemble real path */
+    strncpy(unresolvedPath, "/sys/class/tty/", sizeof(unresolvedPath));
+    strncpy(unresolvedPath+strlen(unresolvedPath), basename((char *)uart), sizeof(unresolvedPath)-strlen(unresolvedPath));
+    if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve symbolic link
         return -1;
-    /* get uart name out of path */
-    pChrMatch = strrchr(uart, '/');
-    if ( NULL == pChrMatch )
-        return -1;
-    strncpy(chrUart, pChrMatch+1, sizeof(chrUart));
-    /* search for path */
-    for ( int i = 0; i < (int) (sizeof(path_globs) / sizeof(path_globs[0])); i++ ) {
-        snprintf(chrCmd, sizeof(chrCmd), "find %s -name dev", path_globs[i]);   // assemble command
-        fH1 = popen(chrCmd, "r");   // request OS
-        while ( (EOF != fscanf(fH1, "%s", chrDevPath)) && ( 0 == intMatchUart) ) {
-            /* remove '/dev' from end of path '/sys/bus/usb/devices/usb2/2-2/2-2:1.0/tty/ttyACM0/dev' */
-            pChrMatch = strrchr(chrDevPath, '/');
-            pChrMatch = strstr(pChrMatch, "/dev");
-            if (!pChrMatch) // skip null pointer write
-                continue;
-            *pChrMatch = '\0';
-            /* get name for match */
-            snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q name -p %s", chrDevPath); // assemble command
-            fH2 = popen(chrCmd, "r");   // request OS
-            if ( 1 != fscanf(fH2, "%s", chrRecUart)) {  // expect one line
-                pclose(fH2);
-                pclose(fH1);
-                return -1;
-            }
-            /* check for name match */
-            if ( NULL != strstr(chrRecUart, chrUart) ) {
-                intMatchUart = 1;
-                break;
-            }
-        }
-        if ( 0 != intMatchUart ) {
-            break;
-        }
     }
-    if ( WEXITSTATUS(pclose(fH1)) || WEXITSTATUS(pclose(fH2)) ) // fail in pipe
+    // result: /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2/2-2:1.0/tty/ttyACM0
+    /* drop last three subdirs */
+    strncpy(unresolvedPath, basePath, sizeof(unresolvedPath));
+    strncpy(unresolvedPath+strlen(unresolvedPath), "/../../../", sizeof(unresolvedPath)-strlen(unresolvedPath));
+    if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve relative path
         return -1;
-    /* device found? */
-    if ( 0 == intMatchUart ) {
-        return 0;
     }
-    /* acquire hw info from OS */
-    snprintf(chrCmd, sizeof(chrCmd), "udevadm info -q property -p %s", chrDevPath); // request uart properties
-    fH2 = popen(chrCmd, "r");   // request OS
-    while ( EOF != fscanf(fH2, "%[^\n]\n", chrBuf) ) {  // "%[^\n]\n" -> read until new line
-        if ( (strlen(description) + strlen(chrBuf) + 3) < max_desc_len ) {
-            strncpy(description+strlen(description), chrBuf, strlen(chrBuf)+1);
-            description[strlen(description)+1] = '\0';
-            description[strlen(description)] = '\n';    // every new property gets a new line
-        } else {
-            pclose(fH2);
-            return -1;
-        }
+    // result: /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2
+    /* acquire device specific info */
+    if (readfile(basePath, "manufacturer", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "manufacturer='%s',", chrBuf);
     }
-    if ( WEXITSTATUS(pclose(fH2)) )
-        return -1;
+    if (readfile(basePath, "product", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "product='%s',", chrBuf);
+    }
+    if (readfile(basePath, "idProduct", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "PID='%s',", chrBuf);
+    }
+    if (readfile(basePath, "idVendor", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "VID='%s',", chrBuf);
+    }
+    if (readfile(basePath, "serial", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "serial='%s',", chrBuf);
+    }
+    /* drop last ',' */
+    if ( 0 < strlen(description) ) {
+        description[strlen(description)-1] = '\0';
+    }
 // MacOS
 #else   // Volunteers for MacOS wanted
 
