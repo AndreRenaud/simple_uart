@@ -590,7 +590,23 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
      *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
      */
     if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
-        snprintf(description+strlen(description), max_desc_len - strlen(description), "hwid='%s',", chrBuf);
+        /* help */
+        char    chrId[5];   // extract VID/PID from HWID string
+        char*   pHelp;      // string matching
+        /* PID */
+        pHelp = strstr(chrBuf, "PID_"); // search for string
+        if ( NULL != pHelp ) {
+            strncpy(chrId, pHelp+4, 4); // copy ID
+            chrId[4] = '\0';
+            snprintf(description+strlen(description), max_desc_len - strlen(description), "PID=%s,", chrId);
+        }
+        /* VID */
+        pHelp = strstr(chrBuf, "VID_"); // search for string
+        if ( NULL != pHelp ) {
+            strncpy(chrId, pHelp+4, 4); // copy ID
+            chrId[4] = '\0';
+            snprintf(description+strlen(description), max_desc_len - strlen(description), "VID=%s,", chrId);
+        }
     }
     // Append next required property here
 // Linux Implementation
@@ -633,13 +649,13 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
         snprintf(description+strlen(description), max_desc_len - strlen(description), "product='%s',", chrBuf);
     }
     if (readfile(basePath, "idProduct", chrBuf, sizeof(chrBuf))) {
-        snprintf(description+strlen(description), max_desc_len - strlen(description), "PID='%s',", chrBuf);
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "PID=%s,", chrBuf);
     }
     if (readfile(basePath, "idVendor", chrBuf, sizeof(chrBuf))) {
-        snprintf(description+strlen(description), max_desc_len - strlen(description), "VID='%s',", chrBuf);
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "VID=%s,", chrBuf);
     }
     if (readfile(basePath, "serial", chrBuf, sizeof(chrBuf))) {
-        snprintf(description+strlen(description), max_desc_len - strlen(description), "serial='%s',", chrBuf);
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "serial=%s,", chrBuf);
     }
 // MacOS
 #else   // Volunteers for MacOS wanted
