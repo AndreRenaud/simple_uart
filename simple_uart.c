@@ -590,11 +590,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
      *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
      */
     if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
-        if ( !((strlen(chrBuf) + strlen(description) + 3) < max_desc_len) ) // check for enough memory, +3 '\n'
-            return -1;
-        strncpy(description+strlen(description), chrBuf, strlen(chrBuf)+1); // copy string
-        description[strlen(description)+1] = '\0';
-        description[strlen(description)] = '\n';    // every new property gets a new line
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "hwid='%s',", chrBuf);
     }
     // Append next required property here
 // Linux Implementation
@@ -645,15 +641,16 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     if (readfile(basePath, "serial", chrBuf, sizeof(chrBuf))) {
         snprintf(description+strlen(description), max_desc_len - strlen(description), "serial='%s',", chrBuf);
     }
-    /* drop last ',' */
-    if ( 0 < strlen(description) ) {
-        description[strlen(description)-1] = '\0';
-    }
 // MacOS
 #else   // Volunteers for MacOS wanted
 
 
 #endif
+    /* drop last ',' */
+    if ( 0 < strlen(description) ) {
+        description[strlen(description)-1] = '\0';
+    }
+    /* normal end */
     return 0;
 }
 
