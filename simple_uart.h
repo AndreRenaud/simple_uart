@@ -32,6 +32,14 @@ enum {
 ssize_t simple_uart_list(char ***namesp);
 
 /**
+ * Creates String with UART port properties
+ * Return:
+ *   != 0   error
+ *   == 0   success
+ */
+int simple_uart_describe(const char *uart, char *description, size_t max_desc_len);
+
+/**
  * Opens a uart, either by device name, or if that fails it will search
  * for a substring match of the descriptions, as returned by simple_uart_list
  */

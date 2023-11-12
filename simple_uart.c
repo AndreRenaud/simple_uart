@@ -25,7 +25,10 @@
 #include <netdb.h>
 #include <libgen.h>
 #else
+#define INITGUID        // required for GUID_DEVCLASS_PORTS, otherwise linker error @see https://stackoverflow.com/questions/14762154/enumerating-battery-devices-c-windows
 #include <windows.h>
+#include <devguid.h>    // GUID_DEVCLASS_PORTS
+#include <Setupapi.h>   // Devices: SetupDiGetClassDevs
 #endif
 
 #ifdef __linux__
@@ -366,6 +369,26 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 }
 #endif
 
+#if defined(__linux__)
+static bool readfile(const char *dir, const char *filename, char *result, size_t max_result_len) {
+    FILE *fp;
+    size_t len = 0;
+    char path[1024];
+    strncpy(path, dir, sizeof(path));
+    strncpy(path+strlen(path), "/", sizeof(path)-strlen(path));
+    strncpy(path+strlen(path), filename, sizeof(path)-strlen(path));
+    result[0] = '\0';
+    if ((fp = fopen(path, "rb")) != NULL) {
+        len = fread(result, 1, max_result_len - 1, fp);
+        if (len) {
+            result[len - 1] = '\0';
+        }
+        fclose(fp);
+    }
+    return len != 0;
+}
+#endif
+
 int simple_uart_close(struct simple_uart *sc)
 {
     if (!sc)
@@ -516,6 +539,135 @@ ssize_t simple_uart_list(char ***namesp)
     *namesp = names;
     return pos;
 #endif
+}
+
+int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
+{
+    char    chrBuf[256];        // help buffer
+
+    description[0] = '\0';  // empty string
+
+// Windows Implementation
+#if defined(_WIN32)
+    int         intMatchUart = 0;   // device on machine matched
+    HDEVINFO    deviceInfoSet;
+    DWORD       i, r;
+
+    /*  Get handle of device information
+     *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsa
+     *    *A: Ansi Function, *W: Unicode function
+     */
+    deviceInfoSet = SetupDiGetClassDevsA((const GUID *) &GUID_DEVCLASS_PORTS, NULL, NULL, DIGCF_PRESENT);
+    if ( INVALID_HANDLE_VALUE == deviceInfoSet ) {
+        return -1;
+    }
+    /* get device info */
+    SP_DEVINFO_DATA deviceInfoData;
+    deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+    /*  iterate over DEVCLASS_PORTS elements
+     *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceregistrypropertya
+     */
+    i = 0;
+    while (SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData)) {
+        /* get user friendly name */
+        if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_FRIENDLYNAME, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
+            /* match by name */
+            if (strstr(chrBuf, uart) != NULL) {  // mark as name hit and leave
+                intMatchUart = 1;
+                break;
+            }
+        } else {
+            r = -GetLastError();
+            if (r > INT_MAX) r = INT_MAX;
+            return (int)r;
+        }
+        ++i;
+    }
+    /* no match by name */
+    if ( 0 == intMatchUart )
+        return 0;
+    /*  acquire HW ID
+     *    f.e. USB\VID_04D8&PID_FFEE&REV_0100
+     */
+    if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
+        /* help */
+        char    chrId[5];   // extract VID/PID from HWID string
+        char*   pHelp;      // string matching
+        /* PID */
+        pHelp = strstr(chrBuf, "PID_"); // search for string
+        if ( NULL != pHelp ) {
+            strncpy(chrId, pHelp+4, 4); // copy ID
+            chrId[4] = '\0';
+            snprintf(description+strlen(description), max_desc_len - strlen(description), "PID=%s,", chrId);
+        }
+        /* VID */
+        pHelp = strstr(chrBuf, "VID_"); // search for string
+        if ( NULL != pHelp ) {
+            strncpy(chrId, pHelp+4, 4); // copy ID
+            chrId[4] = '\0';
+            snprintf(description+strlen(description), max_desc_len - strlen(description), "VID=%s,", chrId);
+        }
+    }
+    // Append next required property here
+// Linux Implementation
+#elif defined(__linux__)
+    char    unresolvedPath[PATH_MAX];   // symbolic path to TTY device
+    char    basePath[PATH_MAX];         // path to read out file
+    char    pathUp[32];                 // number of hierarchy level ups
+    char    *ptrHelp;                   // help pointer
+    int     intCnt = 0;                 // counts occurrence of device name
+    /* assemble real path */
+    strncpy(unresolvedPath, "/sys/class/tty/", sizeof(unresolvedPath));
+    strncpy(unresolvedPath+strlen(unresolvedPath), basename((char *)uart), sizeof(unresolvedPath)-strlen(unresolvedPath));
+    if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve symbolic link
+        return -1;
+    }
+    // result: /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2/2-2:1.0/tty/ttyACM0
+    //         /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2/2-2:1.0/ttyUSB0/tty/ttyUSB0
+    /* determine number of dropped subdirs */
+    ptrHelp = strstr(basePath, basename((char *)uart));
+    while ( NULL != ptrHelp ) {
+        ++intCnt;
+        ptrHelp = strstr(ptrHelp+1, basename((char *)uart));
+    }
+    strncpy(pathUp, "/../../", sizeof(pathUp));
+    for ( int i = 0; i < intCnt; i++ ) {
+        strncpy(pathUp+strlen(pathUp), "../", sizeof(pathUp)-strlen(pathUp));   // append '../' for going up
+    }
+    /* drop counted number of subdirs */
+    strncpy(unresolvedPath, basePath, sizeof(unresolvedPath));
+    strncpy(unresolvedPath+strlen(unresolvedPath), pathUp, sizeof(unresolvedPath)-strlen(unresolvedPath));
+    if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve relative path
+        return -1;
+    }
+    // result: /sys/devices/pci0000:00/0000:00:06.0/usb2/2-2
+    /* acquire device specific info */
+    if (readfile(basePath, "manufacturer", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "manufacturer='%s',", chrBuf);
+    }
+    if (readfile(basePath, "product", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "product='%s',", chrBuf);
+    }
+    if (readfile(basePath, "idProduct", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "PID=%s,", chrBuf);
+    }
+    if (readfile(basePath, "idVendor", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "VID=%s,", chrBuf);
+    }
+    if (readfile(basePath, "serial", chrBuf, sizeof(chrBuf))) {
+        snprintf(description+strlen(description), max_desc_len - strlen(description), "serial=%s,", chrBuf);
+    }
+// MacOS
+#else   // Volunteers for MacOS wanted
+
+
+#endif
+    /* drop last ',' */
+    if ( 0 < strlen(description) ) {
+        description[strlen(description)-1] = '\0';
+    }
+    /* normal end */
+    return 0;
 }
 
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
