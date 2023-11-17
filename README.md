@@ -18,6 +18,8 @@ The library consists of a single .c and .h pair. To add it to a project, simply 
 Please submit a bug report if this does not work.
 
 ## [API](./simple_uart.h)
+
+### List
 ```c
 ssize_t simple_uart_list(char ***namesp);
 ```
@@ -47,6 +49,28 @@ for (ssize_t i = 0; i < nuarts; i++) {
 free(names);
 ```
 
+
+### Describe
+```c
+int simple_uart_describe(const char *uart, char *description, size_t max_desc_len);
+```
+
+Get UART device hardware description:
+* Linux: ```manufacturer='<>',product='<>',PID=<>,VID=<>,serial=<>
+* Windows: ```PID=<>,VID=<>```
+
+#### Arguments:
+Argument | Details
+-------- | -------
+*uart*   | UART device to examine
+*description* | String with port description
+*max_desc_len*| Maximum number of bytes in *description*
+
+#### Return:
+On success *== 0*. *!= 0* on failure.
+
+
+### Open
 ```c
 struct simple_uart *simple_uart_open(const char *name, int speed, const char *mode_string);
 ```
@@ -67,6 +91,8 @@ int simple_uart_close(struct simple_uart *uart);
 ```
 Close a previously opened UART.
 
+
+### Read
 ```c
 ssize_t simple_uart_read(struct simple_uart *uart, void *buffer, size_t max_len);
 ```
@@ -82,6 +108,8 @@ Argument | Details
 #### Return:
 Returns the number of bytes written to *buffer* (up to *max_len*). < 0 on failure.
 
+
+### Write
 ```c
 ssize_t simple_uart_write(struct simple_uart *uart, const void *buffer, size_t len);
 ```
@@ -97,32 +125,44 @@ Argument | Details
 #### Return:
 Returns the number of bytes written from *buffer* to the UART. < 0 on failure.
 
+
+### Delay
 ```c
 unsigned int simple_uart_set_character_delay(struct simple_uart *uart, unsigned int delay_us);
 ```
 Sets a delay to be specified between each character written when using *simple_uart_write*.
 This is useful when communicating with devices that do not support flow control, and are not able to process data at full baudrate
 
+
+### Data available
 ```c
 int simple_uart_has_data(struct simple_uart *uart);
 ```
 Returns the number of available UART bytes.
 
+
+### Logfile
 ```c
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...);
 ```
 Store all read/written data into the given file. Filename can be specified using printf-style syntax.
 
+
+### Get file descriptor
 ```c
 int simple_uart_get_fd(struct simple_uart *uart);
 ```
 *POSIX ONLY* Return the file descriptor for the UART. Useful for monitoring for new data.
 
+
+### Get handle
 ```c
 HANDLE simple_uart_get_handle(struct simple_uart *uart);
 ```
 *WIN32 ONLY* Return the Windows handle for the UART. Useful for monitoring for new data.
 
+
+### Get pin
 ```c
 int simple_uart_get_pin(struct simple_uart *uart, int pin);
 ```
@@ -134,21 +174,29 @@ Argument | Details
 *uart*   | UART to set the pin on
 *pin*    | One of: SIMPLE_UART_RTS, SIMPLE_UART_CTS, SIMPLE_UART_DSR, SIMPLE_UART_DCD, SIMPLE_UART_DTR, SIMPLE_UART_RI
 
+
+### Set Pin
 ```c
 int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high);
 ```
 Set the state of a hardware pin of the UART. See *simple_uart_get_pin*
 
+
+### Flush
 ```c
 int simple_uart_flush(struct simple_uart *uart);
 ```
 Ensure all outstanding data has been written to the wire and is not being buffered by the OS.
 
+
+### Break
 ```c
 int simple_uart_send_break(struct simple_uart *uart);
 ```
 Send a serial break on the UART
 
+
+### Read line
 ```c
 ssize_t simple_uart_read_line(struct simple_uart *uart, char *result, int max_len, int ms_timeout);
 ```
