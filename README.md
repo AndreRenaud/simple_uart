@@ -67,7 +67,7 @@ Argument | Details
 *max_desc_len*| Maximum number of bytes in *description*
 
 #### Return:
-On success *== 0*. *!= 0* on failure.
+On success: *== 0*. On failure: *!= 0*
 
 
 ### Open
