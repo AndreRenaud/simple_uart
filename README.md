@@ -56,7 +56,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
 ```
 
 Get UART device hardware description:
-* Linux: ```manufacturer='<>',product='<>',PID=<>,VID=<>,serial=<>
+* Linux: ```manufacturer='<>',product='<>',PID=<>,VID=<>,serial=<>```
 * Windows: ```PID=<>,VID=<>```
 
 #### Arguments:
