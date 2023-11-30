@@ -28,7 +28,7 @@
 #define INITGUID        // required for GUID_DEVCLASS_PORTS, otherwise linker error @see https://stackoverflow.com/questions/14762154/enumerating-battery-devices-c-windows
 #include <windows.h>
 #include <devguid.h>    // GUID_DEVCLASS_PORTS
-#include <Setupapi.h>   // Devices: SetupDiGetClassDevs
+#include <setupapi.h>   // Devices: SetupDiGetClassDevs
 #endif
 
 #ifdef __linux__
