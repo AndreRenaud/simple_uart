@@ -53,6 +53,16 @@
 #define mseconds() (uint64_t)(GetTickCount64())
 #endif
 
+#ifdef _WIN32
+int win32_errno(void)
+{
+    DWORD e = GetLastError();
+    if (e > INT_MAX)
+        return -1;
+    return -(int)ero;
+}
+#endif
+
 #ifndef TIOCSRS485
 #define TIOCSRS485   0x542F
 #endif
@@ -86,9 +96,8 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
         SetCommTimeouts(sc->port, &commTimeout);
     }
     if (max_len > ULONG_MAX) max_len = ULONG_MAX;   // avoid overflow at typecast
-    if (!ReadFile (sc->port, buffer, (DWORD)max_len, (LPDWORD)&r, NULL)) {
-        return -GetLastError();
-    }
+    if (!ReadFile (sc->port, buffer, (DWORD)max_len, (LPDWORD)&r, NULL))
+        return win32_errno();
 #else
     fd_set readfds, exceptfds;
     struct timeval t;
@@ -161,17 +170,12 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 {
     /* Variables */
     DCB   options;  // config handle for windows, @see https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
-    DWORD ero;      // error return code
 
     /* only non negativ values */
     if (0 > speed) speed = CBR_38400;   // default speed
-    /* Accquire current port config */
-    if (!GetCommState (sc->port, &options)) {
-        ero = -GetLastError();
-        if (ero > INT_MAX)
-            return -1;
-        return (int) ero;
-    }
+    /* Acquire current port config */
+    if (!GetCommState (sc->port, &options))
+        return win32_errno();
     options.BaudRate = (DWORD) speed;
     /* parse mode string */
         // parity
@@ -214,12 +218,8 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     /* mandatory options */
     options.fBinary = TRUE;
     /* assign to port */
-    if (!SetCommState (sc->port, &options)) {
-        ero = -GetLastError();
-        if (ero > INT_MAX)
-            return -1;
-        return (int) ero;
-    }
+    if (!SetCommState (sc->port, &options))
+        return win32_errno();
     /* graceful end */
     return 0;
 }
@@ -551,7 +551,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
 #if defined(_WIN32)
     int         intMatchUart = 0;   // device on machine matched
     HDEVINFO    deviceInfoSet;
-    DWORD       i, r;
+    DWORD       i;
 
     /*  Get handle of device information
      *    @see https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsa
@@ -577,9 +577,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
                 break;
             }
         } else {
-            r = -GetLastError();
-            if (r > INT_MAX) r = INT_MAX;
-            return (int)r;
+            return win32_errno();
         }
         ++i;
     }
@@ -785,12 +783,8 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
     }
 #else
     DWORD status;
-    DWORD r;
-    if (!GetCommModemStatus(uart->port, &status)) {
-        r = -GetLastError();
-        if (r > INT_MAX) r = INT_MAX;
-        return (int)r;
-    }
+    if (!GetCommModemStatus(uart->port, &status))
+        return win32_errno();
     switch (pin) {
     case SIMPLE_UART_CTS:
         return (status & MS_CTS_ON) ? 1 : 0;
@@ -830,7 +824,6 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     return 0;
 #else
     bool res;
-    DWORD r;
     switch(pin) {
     case SIMPLE_UART_RTS:
         res = EscapeCommFunction(uart->port, high ? SETRTS : CLRRTS);
@@ -841,11 +834,8 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
     default:
         return -EINVAL;
     }
-    if (!res) {
-        r = -GetLastError();
-        if (r > INT_MAX) r = INT_MAX;
-        return (int)r;
-    }
+    if (!res)
+        return win32_errno();
     return 0;
 #endif
 }
@@ -856,12 +846,8 @@ int simple_uart_flush(struct simple_uart *uart)
     if (tcdrain(uart->fd) < 0)
         return -errno;
 #else
-    DWORD r;
-    if (!FlushFileBuffers(uart->port)) {
-        r = -GetLastError();
-        if (r > INT_MAX) r = INT_MAX;
-        return (int)r;
-    }
+    if (!FlushFileBuffers(uart->port))
+        return win32_errno();
 #endif
     return 0;
 }
