@@ -59,7 +59,7 @@ int win32_errno(void)
     DWORD e = GetLastError();
     if (e > INT_MAX)
         return -1;
-    return -(int)ero;
+    return -(int)e;
 }
 #endif
 
