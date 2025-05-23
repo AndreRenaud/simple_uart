@@ -419,7 +419,7 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     port = CreateFile (full_port_name, mode, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (port == INVALID_HANDLE_VALUE)
         return NULL;
-    retval = calloc(sizeof(struct simple_uart), 1);
+    retval = calloc(1, sizeof(struct simple_uart));
     retval->port = port;
 #else
     int fd;
@@ -433,7 +433,7 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     signal(SIGIO, SIG_IGN); // so we don't get those 'I/O possible' lines
 
     fcntl(fd, F_SETFL, 0);
-    retval = calloc(sizeof(struct simple_uart), 1);
+    retval = calloc(1, sizeof(struct simple_uart));
     if (!retval)
     {
         close(fd);
