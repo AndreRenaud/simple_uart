@@ -3,7 +3,7 @@ CFLAGS=-g -Wall -pipe
 default: simple_uart_test simple_uart_term
 
 test: simple_uart_test
-	./simple_uart_test
+	./simple_uart_test --xml-output=test-results.xml
 
 check:
 	cppcheck -q --enable=all -UTEST_FINI -UTEST_INIT -UCLOCK_MONOTONIC -URUNNING_ON_VALGRIND *.c
@@ -18,6 +18,6 @@ simple_uart_term: simple_uart_term.o simple_uart.o
 	$(CC) -o simple_uart_term simple_uart_term.o simple_uart.o
 
 clean:
-	rm -f simple_uart_test *.o
+	rm -f simple_uart_test *.o test-results.xml
 
 .PHONY: clean check test
