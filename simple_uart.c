@@ -541,7 +541,9 @@ ssize_t simple_uart_list(char ***namesp)
 
 int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
 {
+#if defined(_WIN32) || defined(__linux__)
     char    chrBuf[256];        // help buffer
+#endif
 
     description[0] = '\0';  // empty string
 
@@ -588,7 +590,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL, (PBYTE)chrBuf, sizeof(chrBuf), NULL)) {
         /* help */
         char    chrId[5];   // extract VID/PID from HWID string
-        char*   pHelp;      // string matching
+        const char*   pHelp;      // string matching
         /* PID */
         pHelp = strstr(chrBuf, "PID_"); // search for string
         if ( NULL != pHelp ) {
@@ -748,12 +750,12 @@ int simple_uart_send_break(struct simple_uart *uart)
 }
 
 #ifdef _WIN32
-HANDLE simple_uart_get_handle(struct simple_uart *uart)
+HANDLE simple_uart_get_handle(const struct simple_uart *uart)
 {
     return uart->port;
 }
 #else
-int simple_uart_get_fd(struct simple_uart *uart)
+int simple_uart_get_fd(const struct simple_uart *uart)
 {
     return uart->fd;
 }
