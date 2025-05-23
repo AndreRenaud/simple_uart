@@ -373,10 +373,8 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 static bool readfile(const char *dir, const char *filename, char *result, size_t max_result_len) {
     FILE *fp;
     size_t len = 0;
-    char path[1024];
-    strncpy(path, dir, sizeof(path));
-    strncpy(path+strlen(path), "/", sizeof(path)-strlen(path));
-    strncpy(path+strlen(path), filename, sizeof(path)-strlen(path));
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", dir, filename);
     result[0] = '\0';
     if ((fp = fopen(path, "rb")) != NULL) {
         len = fread(result, 1, max_result_len - 1, fp);
