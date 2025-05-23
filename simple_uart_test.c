@@ -1,5 +1,24 @@
 #include "acutest.h"
 #include "simple_uart.h"
+#include <errno.h>
+#include <time.h>
+
+#ifndef ETIMEDOUT
+#define ETIMEDOUT 110
+#endif
+
+/* Timer function to get milliseconds - matches the one in simple_uart.c */
+#if defined(__linux__) || defined(__APPLE__)
+static uint64_t mseconds(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / (1000 * 1000);
+}
+#else
+static uint64_t mseconds(void) {
+    return (uint64_t)GetTickCount64();
+}
+#endif
 
 #define UART_LOOPBACK_1 "/tmp/ttyS0"
 #define UART_LOOPBACK_2 "/tmp/ttyS1"
@@ -132,10 +151,55 @@ void test_read_line(void)
 	shutdown_loopback(pid);
 }
 
+void test_read_timeout(void)
+{
+	struct simple_uart *u1, *u2;
+	char buffer[10];
+	pid_t pid;
+	uint64_t start_time, end_time;
+
+	pid = setup_loopback();
+
+	u1 = simple_uart_open(UART_LOOPBACK_1, 115200, "8N1");
+	TEST_ASSERT(u1 != NULL);
+	u2 = simple_uart_open(UART_LOOPBACK_2, 115200, "8N1");
+	TEST_ASSERT(u2 != NULL);
+
+	/* Test timeout=0 (non-blocking) - should return immediately */
+	start_time = mseconds();
+	ssize_t result = simple_uart_read_timeout(u1, buffer, sizeof(buffer), 0);
+	end_time = mseconds();
+	TEST_ASSERT(result == 0);  // No data available
+	TEST_ASSERT((end_time - start_time) < 100);  // Should return quickly
+
+	/* Test with actual timeout - should timeout after specified period */
+	start_time = mseconds();
+	result = simple_uart_read_timeout(u1, buffer, sizeof(buffer), 200);  // 200ms timeout
+	end_time = mseconds();
+	TEST_ASSERT(result == -ETIMEDOUT);  // Should timeout
+	TEST_ASSERT((end_time - start_time) >= 180);  // Should wait at least ~180ms
+	TEST_ASSERT((end_time - start_time) < 300);   // But not much longer than 200ms
+
+	/* Test successful read within timeout */
+	simple_uart_write(u2, "test", 4);
+	usleep(10000);  // Small delay to ensure data is available
+	start_time = mseconds();
+	result = simple_uart_read_timeout(u1, buffer, sizeof(buffer), 1000);  // 1 second timeout
+	end_time = mseconds();
+	TEST_ASSERT(result == 4);  // Should read 4 bytes
+	TEST_ASSERT(memcmp(buffer, "test", 4) == 0);
+	TEST_ASSERT((end_time - start_time) < 100);  // Should return quickly when data is available
+
+	simple_uart_close(u1);
+	simple_uart_close(u2);
+	shutdown_loopback(pid);
+}
+
 TEST_LIST = {
 	{"open", test_open},
 	{"loopback", test_loopback},
 	{"loopback_random", test_loopback_random},
 	{"read_line", test_read_line},
+	{"read_timeout", test_read_timeout},
 	{NULL, NULL},
 };

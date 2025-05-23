@@ -48,6 +48,7 @@ int simple_uart_close(struct simple_uart *uart);
 
 /* Raw read/write */
 ssize_t simple_uart_read(struct simple_uart *uart, void *buffer, size_t max_len);
+ssize_t simple_uart_read_timeout(struct simple_uart *uart, void *buffer, size_t max_len, uint64_t timeout_ms);
 ssize_t simple_uart_write(struct simple_uart *uart, const void *buffer, size_t len);
 
 /* Sets the delay between sending each character when using uart_write */

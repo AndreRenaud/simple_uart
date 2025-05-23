@@ -13,7 +13,7 @@ The code is licensed under the 0-Clause BSD - see [LICENSE](/LICENSE) for detail
 
 ## How to add it to a project
 
-The library consists of a single .c and .h pair. To add it to a project, simply copy the *simple_uart.c* and *simple_uart.h* file into the project and add to the build system. There are no external dependencies beyond the standard system library, and the code should automatically determine which platform it is building for and comple correctly. The license should be suitable for both open-source and commercial projects.
+The library consists of a single .c and .h pair. To add it to a project, simply copy the *simple_uart.c* and *simple_uart.h* file into the project and add to the build system. There are no external dependencies beyond the standard system library, and the code should automatically determine which platform it is building for and compile correctly. The license should be suitable for both open-source and commercial projects.
 
 Please submit a bug report if this does not work.
 
@@ -107,6 +107,24 @@ Argument | Details
 
 #### Return:
 Returns the number of bytes written to *buffer* (up to *max_len*). < 0 on failure.
+
+
+### Read with Timeout
+```c
+ssize_t simple_uart_read_timeout(struct simple_uart *uart, void *buffer, size_t max_len, uint64_t timeout_ms);
+```
+Read bytes from the given UART with a specified timeout.
+
+#### Arguments:
+Argument | Details
+-------- | -------
+*uart*   | UART to read from
+*buffer* | Area to store read data into
+*max_len*| Maximum number of bytes to store into *buffer*
+*timeout_ms* | Timeout in milliseconds. Use 0 for non-blocking mode
+
+#### Return:
+Returns the number of bytes written to *buffer* (up to *max_len*). Returns -ETIMEDOUT if timeout occurs. < 0 on other failures.
 
 
 ### Write

@@ -83,17 +83,29 @@ struct simple_uart
 
 ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 {
+    return simple_uart_read_timeout(sc, buffer, max_len, 0);
+}
+
+ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t max_len, uint64_t timeout_ms)
+{
     ssize_t r = 0;
 #ifdef _WIN32
     COMMTIMEOUTS commTimeout;
     DWORD bytes_read = 0;
 
-    /* Get the comm timouts */
+    /* Get the comm timeouts */
     if (GetCommTimeouts(sc->port, &commTimeout)) {
-        /* Set the timeout to return immediately with whatever data is there */
-        commTimeout.ReadIntervalTimeout = MAXDWORD;
-        commTimeout.ReadTotalTimeoutMultiplier = MAXDWORD;
-        commTimeout.ReadTotalTimeoutConstant = 1;
+        if (timeout_ms == 0) {
+            /* Non-blocking: return immediately with whatever data is there */
+            commTimeout.ReadIntervalTimeout = MAXDWORD;
+            commTimeout.ReadTotalTimeoutMultiplier = MAXDWORD;
+            commTimeout.ReadTotalTimeoutConstant = 1;
+        } else {
+            /* Blocking with timeout */
+            commTimeout.ReadIntervalTimeout = 0;
+            commTimeout.ReadTotalTimeoutMultiplier = 0;
+            commTimeout.ReadTotalTimeoutConstant = (DWORD)timeout_ms;
+        }
         SetCommTimeouts(sc->port, &commTimeout);
     }
     if (max_len > ULONG_MAX) max_len = ULONG_MAX;   // avoid overflow at typecast
@@ -101,25 +113,48 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
         return win32_errno();
     r = (ssize_t)bytes_read;
 #else
-    fd_set readfds, exceptfds;
-    struct timeval t;
+    if (timeout_ms == 0) {
+        /* Non-blocking mode: use select with a minimal timeout */
+        fd_set readfds, exceptfds;
+        struct timeval t;
 
-    // Have a timeout of 50ms to avoid just thrashing the CPU
-    FD_ZERO(&readfds);
-    FD_SET(sc->fd, &readfds);
-    FD_ZERO(&exceptfds);
-    FD_SET(sc->fd, &exceptfds);
-    t.tv_sec = 0;
-    t.tv_usec = 50 * 1000;
+        // Have a timeout of 50ms to avoid just thrashing the CPU
+        FD_ZERO(&readfds);
+        FD_SET(sc->fd, &readfds);
+        FD_ZERO(&exceptfds);
+        FD_SET(sc->fd, &exceptfds);
+        t.tv_sec = 0;
+        t.tv_usec = 50 * 1000;
 
-    r = select(sc->fd + 1, &readfds, NULL, &exceptfds, &t);
-    if (r < 0)
-        return -errno;
-    if (r == 0)
-        return 0;
-    r = read (sc->fd, buffer, max_len);
-    if (r < 0)
-        r = -errno;
+        r = select(sc->fd + 1, &readfds, NULL, &exceptfds, &t);
+        if (r < 0)
+            return -errno;
+        if (r == 0)
+            return 0;
+        r = read (sc->fd, buffer, max_len);
+        if (r < 0)
+            r = -errno;
+    } else {
+        /* Blocking mode with timeout */
+        fd_set readfds, exceptfds;
+        struct timeval t;
+
+        FD_ZERO(&readfds);
+        FD_SET(sc->fd, &readfds);
+        FD_ZERO(&exceptfds);
+        FD_SET(sc->fd, &exceptfds);
+        t.tv_sec = timeout_ms / 1000;
+        t.tv_usec = (timeout_ms % 1000) * 1000;
+
+        r = select(sc->fd + 1, &readfds, NULL, &exceptfds, &t);
+        if (r < 0)
+            return -errno;
+        if (r == 0)
+            return -ETIMEDOUT;  // Timeout occurred
+        r = read (sc->fd, buffer, max_len);
+        if (r < 0)
+            r = -errno;
+    }
 #endif
     if (r > 0 && sc->logfile) {
         fwrite(buffer, (size_t) r, 1, sc->logfile);
