@@ -12,11 +12,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: setup
-      run: sudo apt-get update && sudo apt-get -f install socat cppcheck clang-format-20
+      run: sudo apt-get update && sudo apt-get -f install socat cppcheck clang-format-19
     - name: build
       run: make
     - name: test
-      run: CLANG_FORMAT=clang-format-20 make check test
+      run: CLANG_FORMAT=clang-format-19 make check test
     - name: Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
