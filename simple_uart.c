@@ -83,11 +83,16 @@ struct simple_uart
 
 ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 {
+    if (!sc || !buffer || max_len == 0)
+        return -EINVAL;
     return simple_uart_read_timeout(sc, buffer, max_len, 0);
 }
 
 ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t max_len, uint64_t timeout_ms)
 {
+    if (!sc || !buffer || max_len == 0)
+        return -EINVAL;
+
     ssize_t r = 0;
 #ifdef _WIN32
     COMMTIMEOUTS commTimeout;
@@ -165,6 +170,11 @@ ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t ma
 
 ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len)
 {
+    if (!sc || !buffer)
+        return -EINVAL;
+    if (len == 0)
+        return 0;  // Nothing to write, but not an error
+
 #ifdef _WIN32
     ssize_t r = 0;
     DWORD bytes_written = 0;
@@ -511,6 +521,8 @@ int simple_uart_has_data(struct simple_uart *sc)
 
 unsigned int simple_uart_set_character_delay(struct simple_uart *sc, unsigned int delay_us)
 {
+    if (!sc)
+        return 0;
     unsigned int old_delay = sc->char_delay_us;
     sc->char_delay_us = delay_us;
     return old_delay;
@@ -581,6 +593,9 @@ ssize_t simple_uart_list(char ***namesp)
 
 int simple_uart_describe(const char *uart, char *description, size_t max_desc_len)
 {
+    if (!uart || !description || max_desc_len == 0)
+        return -EINVAL;
+
 #if defined(_WIN32) || defined(__linux__)
     char    chrBuf[256];        // help buffer
 #endif
@@ -738,7 +753,7 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
     uint64_t last = mseconds();
     uint64_t now = mseconds();
 
-    if (!buffer || max_len == 0)
+    if (!uart || !buffer || max_len <= 0)
         return -EINVAL;
 
     *buffer = '\0';
@@ -775,6 +790,9 @@ ssize_t simple_uart_read_line(struct simple_uart *uart, char *buffer, int max_le
 
 int simple_uart_send_break(struct simple_uart *uart)
 {
+    if (!uart)
+        return -EINVAL;
+
 #if defined(__linux__) || defined(__APPLE__)
     tcsendbreak(uart->fd, 1);
     return 0;
@@ -791,17 +809,24 @@ int simple_uart_send_break(struct simple_uart *uart)
 #ifdef _WIN32
 HANDLE simple_uart_get_handle(const struct simple_uart *uart)
 {
+    if (!uart)
+        return INVALID_HANDLE_VALUE;
     return uart->port;
 }
 #else
 int simple_uart_get_fd(const struct simple_uart *uart)
 {
+    if (!uart)
+        return -1;
     return uart->fd;
 }
 #endif
 
 int simple_uart_get_pin(struct simple_uart *uart, int pin)
 {
+    if (!uart)
+        return -EINVAL;
+
 #if defined(__linux__) || defined(__APPLE__)
     int status;
 
@@ -841,10 +866,13 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin)
 
 int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
 {
+    if (!uart)
+        return -EINVAL;
+
 #if defined(__linux__) || defined(__APPLE__)
     int bits;
 
-    if (!uart || uart->fd < 0)
+    if (uart->fd < 0)
         return -EINVAL;
 
     switch (pin) {
@@ -881,6 +909,9 @@ int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high)
 
 int simple_uart_flush(struct simple_uart *uart)
 {
+    if (!uart)
+        return -EINVAL;
+
 #if defined(__linux__) || defined(__APPLE__)
     if (tcdrain(uart->fd) < 0)
         return -errno;
