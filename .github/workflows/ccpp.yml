@@ -22,7 +22,7 @@ jobs:
       with:
         name: Tests
         path: test-results.xml
-        reporter: jest-junit
+        reporter: java-junit
   windows:
     runs-on: windows-latest
     steps:
