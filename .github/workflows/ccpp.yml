@@ -17,6 +17,12 @@ jobs:
       run: make
     - name: test
       run: make check test
+    - name: Test Report
+      uses: dorny/test-reporter@v2
+      with:
+        name: Tests
+        path: test-results.xml
+        reporter: jest-junit
   windows:
     runs-on: windows-latest
     steps:
