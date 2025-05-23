@@ -86,6 +86,7 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
     ssize_t r = 0;
 #ifdef _WIN32
     COMMTIMEOUTS commTimeout;
+    DWORD bytes_read = 0;
 
     /* Get the comm timouts */
     if (GetCommTimeouts(sc->port, &commTimeout)) {
@@ -96,8 +97,9 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
         SetCommTimeouts(sc->port, &commTimeout);
     }
     if (max_len > ULONG_MAX) max_len = ULONG_MAX;   // avoid overflow at typecast
-    if (!ReadFile (sc->port, buffer, (DWORD)max_len, (LPDWORD)&r, NULL))
+    if (!ReadFile (sc->port, buffer, (DWORD)max_len, &bytes_read, NULL))
         return win32_errno();
+    r = (ssize_t)bytes_read;
 #else
     fd_set readfds, exceptfds;
     struct timeval t;
@@ -130,9 +132,12 @@ ssize_t simple_uart_write(struct simple_uart *sc, const void *buffer, size_t len
 {
 #ifdef _WIN32
     ssize_t r = 0;
+    DWORD bytes_written = 0;
     /* TODO: Support char_delay_us */
     if (len > ULONG_MAX) len = ULONG_MAX;   // avoid overflow at typecast
-    WriteFile (sc->port, buffer, (DWORD)len, (LPDWORD)&r, NULL);
+    if (!WriteFile (sc->port, buffer, (DWORD)len, &bytes_written, NULL))
+        return win32_errno();
+    r = (ssize_t)bytes_written;
 #else
     ssize_t r;
     if (len > SSIZE_MAX) len = SSIZE_MAX;   // avoid overflow at cast to signed type
@@ -615,8 +620,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     char    *ptrHelp;                   // help pointer
     int     intCnt = 0;                 // counts occurrence of device name
     /* assemble real path */
-    strncpy(unresolvedPath, "/sys/class/tty/", sizeof(unresolvedPath));
-    strncpy(unresolvedPath+strlen(unresolvedPath), basename((char *)uart), sizeof(unresolvedPath)-strlen(unresolvedPath));
+    snprintf(unresolvedPath, sizeof(unresolvedPath), "/sys/class/tty/%s", basename((char *)uart));
     if ( !(NULL != realpath(unresolvedPath, basePath)) ) {  // resolve symbolic link
         return -1;
     }
