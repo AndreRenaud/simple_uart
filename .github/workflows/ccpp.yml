@@ -12,7 +12,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: setup
-      run: sudo apt-get update && sudo apt-get -f install socat cppcheck
+      run: sudo apt-get update && sudo apt-get -f install socat cppcheck clang-format
     - name: build
       run: make
     - name: test

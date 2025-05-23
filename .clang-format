@@ -1,0 +1,8 @@
+BasedOnStyle: llvm
+IndentWidth: 4
+BreakBeforeBraces: Linux
+ColumnLimit: 120
+AllowShortFunctionsOnASingleLine: None
+AllowAllParametersOfDeclarationOnNextLine: false
+AlignEscapedNewlines: LeftWithLastLine
+AllowShortCaseLabelsOnASingleLine: true
