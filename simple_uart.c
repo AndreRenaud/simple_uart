@@ -85,7 +85,8 @@ struct simple_uart {
 
 ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 {
-    return simple_uart_read_timeout(sc, buffer, max_len, 0);
+    // We use a 50ms timeout by default to avoid CPU churn
+    return simple_uart_read_timeout(sc, buffer, max_len, 50);
 }
 
 ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t max_len, uint64_t timeout_ms)

@@ -105,13 +105,12 @@ void test_loopback_random(void)
 
     for (int i = 0; i < 100; i++) {
         unsigned char tx[100];
-        unsigned char rx[sizeof(tx)];
-        int tx_len = rand() % sizeof(tx);
+        unsigned char rx[sizeof(tx) * 2];
+        int tx_len = 1 + (rand() % (sizeof(tx) - 1));
         for (int j = 0; j < tx_len; j++)
             tx[j] = rand() % 256;
         memset(rx, 0, sizeof(rx));
         TEST_ASSERT(simple_uart_write(u1, tx, tx_len) == tx_len);
-        usleep(1000);
         TEST_ASSERT(simple_uart_read(u2, rx, sizeof(rx)) == tx_len);
         TEST_ASSERT(memcmp(rx, tx, tx_len) == 0);
     }
@@ -171,8 +170,12 @@ void test_read_timeout(void)
     start_time = mseconds();
     ssize_t result = simple_uart_read_timeout(u1, buffer, sizeof(buffer), 0);
     end_time = mseconds();
-    TEST_ASSERT(result == 0);                   // No data available
+    TEST_ASSERT(result == -ETIMEDOUT);          // Nothing was available, so it timed out
     TEST_ASSERT((end_time - start_time) < 100); // Should return quickly
+
+    /* Try reading nothing */
+    result = simple_uart_read_timeout(u1, buffer, 0, 0);
+    TEST_ASSERT(result == 0); // Should return 0 for reading nothing
 
     /* Test with actual timeout - should timeout after specified period */
     start_time = mseconds();
