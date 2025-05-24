@@ -24,11 +24,12 @@
 #include <termios.h>
 #include <unistd.h>
 #else
+#include <windows.h>
+
 #define INITGUID      // required for GUID_DEVCLASS_PORTS, otherwise linker error @see
                       // https://stackoverflow.com/questions/14762154/enumerating-battery-devices-c-windows
 #include <devguid.h>  // GUID_DEVCLASS_PORTS
 #include <setupapi.h> // Devices: SetupDiGetClassDevs
-#include <windows.h>
 #endif
 
 #ifdef __linux__

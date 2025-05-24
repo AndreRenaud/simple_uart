@@ -4,5 +4,5 @@ BreakBeforeBraces: Linux
 ColumnLimit: 120
 AllowShortFunctionsOnASingleLine: None
 AllowAllParametersOfDeclarationOnNextLine: false
-AlignEscapedNewlines: LeftWithLastLine
+AlignEscapedNewlines: Left
 AllowShortCaseLabelsOnASingleLine: true
