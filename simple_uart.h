@@ -9,8 +9,8 @@ extern "C" {
 #include <stdint.h>
 
 #ifdef _WIN32
-#include <windows.h>
 #include <basetsd.h>
+#include <windows.h>
 typedef SSIZE_T ssize_t;
 #endif
 
