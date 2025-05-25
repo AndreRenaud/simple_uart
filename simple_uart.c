@@ -716,6 +716,9 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
     char *buffer;
     int len;
 
+    if (!uart || !logfile)
+        return -EINVAL;
+
     va_start(ap, logfile);
     len = vasprintf(&buffer, logfile, ap);
     va_end(ap);

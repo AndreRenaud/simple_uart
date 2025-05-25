@@ -1,7 +1,12 @@
 #include "acutest.h"
 #include "simple_uart.h"
 #include <errno.h>
+#include <signal.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifndef ETIMEDOUT
 #define ETIMEDOUT 110
@@ -202,7 +207,63 @@ void test_read_timeout(void)
     shutdown_loopback(pid);
 }
 
+void test_logfile(void)
+{
+    struct simple_uart *u1, *u2;
+    char buffer[20];
+    pid_t pid;
+    const char *logfile = "/tmp/simple_uart_test.log";
+    FILE *fp;
+    char log_contents[100];
+
+    /* Remove any existing log file */
+    unlink(logfile);
+
+    pid = setup_loopback();
+
+    u1 = simple_uart_open(UART_LOOPBACK_1, 115200, "8N1");
+    TEST_ASSERT(u1 != NULL);
+    u2 = simple_uart_open(UART_LOOPBACK_2, 115200, "8N1");
+    TEST_ASSERT(u2 != NULL);
+
+    /* Set logfile on u1 */
+    TEST_ASSERT(simple_uart_set_logfile(u1, logfile) == 0);
+
+    /* Test error cases */
+    TEST_ASSERT(simple_uart_set_logfile(NULL, logfile) == -EINVAL);
+    TEST_ASSERT(simple_uart_set_logfile(u1, NULL) == -EINVAL);
+
+    TEST_ASSERT(simple_uart_write(u1, "hello", 5) == 5);
+    TEST_ASSERT(simple_uart_read(u2, buffer, sizeof(buffer)) == 5);
+    TEST_ASSERT(simple_uart_write(u2, "world", 5) == 5);
+    TEST_ASSERT(simple_uart_read(u1, buffer, sizeof(buffer)) == 5);
+
+    /* Close connections to flush logs */
+    simple_uart_close(u1);
+    simple_uart_close(u2);
+    shutdown_loopback(pid);
+
+    /* Check that logfile was created and contains expected data */
+    fp = fopen(logfile, "r");
+    TEST_ASSERT(fp != NULL);
+
+    size_t read_size = fread(log_contents, 1, sizeof(log_contents) - 1, fp);
+    TEST_ASSERT(read_size > 0); // Ensure we read something
+    log_contents[read_size] = '\0';
+    fclose(fp);
+
+    TEST_ASSERT(strcmp(log_contents, "helloworld") == 0);
+
+    /* Clean up */
+    unlink(logfile);
+}
+
 TEST_LIST = {
-    {"open", test_open},           {"loopback", test_loopback},         {"loopback_random", test_loopback_random},
-    {"read_line", test_read_line}, {"read_timeout", test_read_timeout}, {NULL, NULL},
+    {"open", test_open},
+    {"loopback", test_loopback},
+    {"loopback_random", test_loopback_random},
+    {"read_line", test_read_line},
+    {"read_timeout", test_read_timeout},
+    {"logfile", test_logfile},
+    {NULL, NULL},
 };
