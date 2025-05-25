@@ -85,14 +85,17 @@ struct simple_uart {
 
 ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 {
-    if (!sc || !buffer || max_len == 0)
-        return -EINVAL;
-    return simple_uart_read_timeout(sc, buffer, max_len, 0);
+    // We use a 50ms timeout by default to avoid CPU churn
+    return simple_uart_read_timeout(sc, buffer, max_len, 50);
 }
 
 ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t max_len, uint64_t timeout_ms)
 {
-    if (!sc || !buffer || max_len == 0)
+    if (!sc)
+        return -EINVAL;
+    if (max_len == 0)
+        return 0; // Nothing to read, but not an error
+    if (!buffer)
         return -EINVAL;
 
     ssize_t r = 0;
@@ -121,48 +124,24 @@ ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t ma
         return win32_errno();
     r = (ssize_t)bytes_read;
 #else
-    if (timeout_ms == 0) {
-        /* Non-blocking mode: use select with a minimal timeout */
-        fd_set readfds, exceptfds;
-        struct timeval t;
+    fd_set readfds, exceptfds;
+    struct timeval t;
 
-        // Have a timeout of 50ms to avoid just thrashing the CPU
-        FD_ZERO(&readfds);
-        FD_SET(sc->fd, &readfds);
-        FD_ZERO(&exceptfds);
-        FD_SET(sc->fd, &exceptfds);
-        t.tv_sec = 0;
-        t.tv_usec = 50 * 1000;
+    FD_ZERO(&readfds);
+    FD_SET(sc->fd, &readfds);
+    FD_ZERO(&exceptfds);
+    FD_SET(sc->fd, &exceptfds);
+    t.tv_sec = timeout_ms / 1000;
+    t.tv_usec = (timeout_ms % 1000) * 1000;
 
-        r = select(sc->fd + 1, &readfds, NULL, &exceptfds, &t);
-        if (r < 0)
-            return -errno;
-        if (r == 0)
-            return 0;
-        r = read(sc->fd, buffer, max_len);
-        if (r < 0)
-            r = -errno;
-    } else {
-        /* Blocking mode with timeout */
-        fd_set readfds, exceptfds;
-        struct timeval t;
-
-        FD_ZERO(&readfds);
-        FD_SET(sc->fd, &readfds);
-        FD_ZERO(&exceptfds);
-        FD_SET(sc->fd, &exceptfds);
-        t.tv_sec = timeout_ms / 1000;
-        t.tv_usec = (timeout_ms % 1000) * 1000;
-
-        r = select(sc->fd + 1, &readfds, NULL, &exceptfds, &t);
-        if (r < 0)
-            return -errno;
-        if (r == 0)
-            return -ETIMEDOUT; // Timeout occurred
-        r = read(sc->fd, buffer, max_len);
-        if (r < 0)
-            r = -errno;
-    }
+    r = select(sc->fd + 1, &readfds, NULL, &exceptfds, &t);
+    if (r < 0)
+        return -errno;
+    if (r == 0)
+        return -ETIMEDOUT; // Timeout occurred
+    r = read(sc->fd, buffer, max_len);
+    if (r < 0)
+        r = -errno;
 #endif
     if (r > 0 && sc->logfile) {
         fwrite(buffer, (size_t)r, 1, sc->logfile);
