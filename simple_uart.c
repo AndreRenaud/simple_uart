@@ -91,11 +91,12 @@ ssize_t simple_uart_read(struct simple_uart *sc, void *buffer, size_t max_len)
 
 ssize_t simple_uart_read_timeout(struct simple_uart *sc, void *buffer, size_t max_len, uint64_t timeout_ms)
 {
-    if (!sc || !buffer)
+    if (!sc)
         return -EINVAL;
-
     if (max_len == 0)
         return 0; // Nothing to read, but not an error
+    if (!buffer)
+        return -EINVAL;
 
     ssize_t r = 0;
 #ifdef _WIN32

@@ -111,6 +111,8 @@ void test_loopback_random(void)
             tx[j] = rand() % 256;
         memset(rx, 0, sizeof(rx));
         TEST_ASSERT(simple_uart_write(u1, tx, tx_len) == tx_len);
+        usleep(1000); // Give it time to get to the other end
+        TEST_ASSERT(simple_uart_has_data(u2) == tx_len);
         TEST_ASSERT(simple_uart_read(u2, rx, sizeof(rx)) == tx_len);
         TEST_ASSERT(memcmp(rx, tx, tx_len) == 0);
     }
