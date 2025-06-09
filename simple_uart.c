@@ -429,6 +429,12 @@ int simple_uart_close(struct simple_uart *sc)
     if (!sc)
         return -EINVAL;
 
+    /* Close logfile if open to prevent file handle leak */
+    if (sc->logfile) {
+        fclose(sc->logfile);
+        sc->logfile = NULL;
+    }
+
 #if defined(__linux__) || defined(__APPLE__)
     close(sc->fd);
 #else
@@ -455,6 +461,10 @@ struct simple_uart *simple_uart_open(const char *device, int speed, const char *
     if (port == INVALID_HANDLE_VALUE)
         return NULL;
     retval = calloc(1, sizeof(struct simple_uart));
+    if (!retval) {
+        CloseHandle(port);
+        return NULL;
+    }
     retval->port = port;
 #else
     int fd;
@@ -534,18 +544,34 @@ ssize_t simple_uart_list(char ***namesp)
         if (glob(path_globs[path], 0, NULL, &g) >= 0) {
             char buffer[100];
             char **new_names;
-            if ((count + g.gl_pathc) > SSIZE_MAX)
+            if ((count + g.gl_pathc) > SSIZE_MAX) {
+                globfree(&g);
                 break; // abort to avoid memory leakage
+            }
             new_names = realloc(names, (count + g.gl_pathc) * sizeof(char *));
             if (!new_names) {
-                globfree(&g);
+                /* Free previously allocated strings to prevent memory leak */
+                for (size_t j = 0; j < count; j++) {
+                    free(names[j]);
+                }
                 free(names);
+                globfree(&g);
                 return -ENOMEM;
             }
             names = new_names;
             for (size_t i = count; i < count + g.gl_pathc; i++) {
-                sprintf(buffer, "/dev/%s", basename(g.gl_pathv[i - count]));
+                /* Use snprintf to prevent buffer overflow */
+                snprintf(buffer, sizeof(buffer), "/dev/%s", basename(g.gl_pathv[i - count]));
                 names[i] = strdup(buffer);
+                if (!names[i]) {
+                    /* Handle strdup failure */
+                    for (size_t j = 0; j < i; j++) {
+                        free(names[j]);
+                    }
+                    free(names);
+                    globfree(&g);
+                    return -ENOMEM;
+                }
             }
             count += g.gl_pathc;
             globfree(&g);
@@ -568,6 +594,9 @@ ssize_t simple_uart_list(char ***namesp)
                 continue;
             names = new_names;
             names[pos] = malloc(strlen(buffer) + 1);
+            if (!names[pos]) {
+                continue;
+            }
             strcpy(names[pos], buffer);
             pos++;
         }

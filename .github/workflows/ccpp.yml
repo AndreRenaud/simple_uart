@@ -12,11 +12,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: setup
-      run: sudo apt-get update && sudo apt-get -f install socat cppcheck clang-format-19
+      run: sudo apt-get update && sudo apt-get -f install socat cppcheck clang-format-19 valgrind
     - name: build
       run: make
     - name: test
       run: CLANG_FORMAT=clang-format-19 make check test
+    - name: valgrind
+      run: make valgrind
     - name: Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:

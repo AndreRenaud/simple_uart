@@ -168,14 +168,14 @@ Store all read/written data into the given file. Filename can be specified using
 
 ### Get file descriptor
 ```c
-int simple_uart_get_fd(struct simple_uart *uart);
+int simple_uart_get_fd(const struct simple_uart *uart);
 ```
 *POSIX ONLY* Return the file descriptor for the UART. Useful for monitoring for new data.
 
 
 ### Get handle
 ```c
-HANDLE simple_uart_get_handle(struct simple_uart *uart);
+HANDLE simple_uart_get_handle(const struct simple_uart *uart);
 ```
 *WIN32 ONLY* Return the Windows handle for the UART. Useful for monitoring for new data.
 
