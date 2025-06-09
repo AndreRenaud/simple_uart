@@ -8,7 +8,7 @@ test: simple_uart_test
 	./simple_uart_test --xml-output=test-results.xml
 
 valgrind: simple_uart_test
-	valgrind --leak-check=full --show-leak-kinds=all ./simple_uart_test
+	valgrind --leak-check=full --show-leak-kinds=all ./simple_uart_test --exec=never
 
 format:
 	$(CLANG_FORMAT) -i $(SRCS)
