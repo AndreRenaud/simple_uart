@@ -190,7 +190,7 @@ void test_read_timeout(void)
     end_time = mseconds();
     TEST_ASSERT(result == -ETIMEDOUT);           // Should timeout
     TEST_ASSERT((end_time - start_time) >= 180); // Should wait at least ~180ms
-    TEST_ASSERT((end_time - start_time) < 300);  // But not much longer than 200ms
+    TEST_ASSERT_((end_time - start_time) < 300, "!end (%llu) - start (%llu) < 300 (%llu)", end_time, start_time, end_time-start_time);  // But not much longer than 200ms
 
     /* Test successful read within timeout */
     simple_uart_write(u2, "test", 4);
