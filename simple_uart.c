@@ -756,14 +756,14 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
 {
     va_list ap;
-    char *buffer;
+    char buffer[PATH_MAX];
     int len;
 
     if (!uart || !logfile)
         return -EINVAL;
 
     va_start(ap, logfile);
-    len = vasprintf(&buffer, logfile, ap);
+    len = vsprintf(buffer, logfile, ap);
     va_end(ap);
     if (len < 0)
         return -errno;
@@ -774,10 +774,8 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
     uart->logfile = fopen(buffer, "a");
     if (!uart->logfile) {
         int e = -errno;
-        free(buffer);
         return e;
     }
-    free(buffer);
     return 0;
 }
 
