@@ -267,6 +267,7 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 
     /* mandatory options */
     options.fBinary = TRUE;
+    options.fDtrControl = FALSE;
     /* assign to port */
     if (!SetCommState(sc->port, &options))
         return win32_errno();
