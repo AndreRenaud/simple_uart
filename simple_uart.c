@@ -1,5 +1,8 @@
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
+#ifndef PATH_MAX
+#define PATH_MAX MAX_PATH
+#endif /* PATH_MAX */
 #endif /* _MSC_VER */
 
 #define _GNU_SOURCE
