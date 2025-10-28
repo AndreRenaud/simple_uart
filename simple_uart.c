@@ -256,6 +256,15 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     } else {
         options.fRtsControl = RTS_CONTROL_DISABLE;
     }
+    // XON/XOFF
+    if (HAS_OPTION('X')) {
+        options.fOutX = TRUE;
+        options.fInX = TRUE;
+    } else {
+        options.fOutX = FALSE;
+        options.fInX = FALSE;
+    }
+
     /* mandatory options */
     options.fBinary = TRUE;
     /* assign to port */
