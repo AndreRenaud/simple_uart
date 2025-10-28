@@ -376,6 +376,11 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     else
         options.c_cflag &= ~CRTSCTS;
 
+    /* clear and set software flow control */
+    options.c_iflag &= (tcflag_t) ~(IXON | IXOFF | IXANY);
+    if (HAS_OPTION('X'))
+        options.c_iflag |= IXON | IXOFF;
+
     // raw input mode
     options.c_lflag &= (tcflag_t) ~(ICANON | ECHO | ECHOE | ISIG);
 
@@ -766,7 +771,7 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
         return -EINVAL;
 
     va_start(ap, logfile);
-    len = vsprintf(buffer, logfile, ap);
+    len = vsnprintf(buffer, sizeof(buffer), logfile, ap);
     va_end(ap);
     if (len < 0)
         return -errno;
