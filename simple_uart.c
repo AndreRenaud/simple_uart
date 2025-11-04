@@ -384,9 +384,6 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     // raw input mode
     options.c_lflag &= (tcflag_t) ~(ICANON | ECHO | ECHOE | ISIG);
 
-    // disable software flow control
-    options.c_iflag &= (tcflag_t) ~(IXON | IXOFF | IXANY);
-
     // maintain carriage return on input, and don't translate it
     options.c_iflag &= (tcflag_t) ~(IGNCR | ICRNL | INLCR);
 
