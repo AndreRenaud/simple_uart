@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/select.h>
 #include <termios.h>
 #include <unistd.h>
@@ -27,9 +28,13 @@ int main(int argc, char *argv[])
         case 'l': {
             char **names;
             ssize_t nuarts = simple_uart_list(&names);
+            char description[256] = {0};
             printf("Found %zd ports\n", nuarts);
             for (ssize_t i = 0; i < nuarts; i++) {
-                printf("Port %zd: %s\n", i, names[i]);
+                printf("Port %zd: %s", i, names[i]);
+                if (simple_uart_describe(names[i], description, sizeof(description)) == 0 && strlen(description) > 0)
+                    printf(" Description: %s", description);
+                printf("\n");
             }
 
             for (ssize_t i = 0; i < nuarts; i++) {
