@@ -270,8 +270,6 @@ void test_list(void)
     /* Count should be non-negative and should have the loopback devices or at least
      * verify that the list function works without crashing */
     TEST_ASSERT(count > 0);
-    printf("Device count: %zd\n", count);
-
     TEST_ASSERT(names != NULL);
     int ndescs = 0;
 
@@ -281,17 +279,10 @@ void test_list(void)
         TEST_ASSERT(names[i] != NULL);
         TEST_ASSERT(strlen(names[i]) > 0);
         TEST_ASSERT(simple_uart_describe(names[i], description, sizeof(description)) == 0);
-        printf("%zd: name=%s desc=%s\n", i, names[i], description);
-        if (strlen(description) > 0) {
-            ndescs++;
-        }
-
+        TEST_ASSERT(strlen(description) > 0);
         free(names[i]);
     }
     free(names);
-
-    // At least one has to have a description
-    TEST_ASSERT(ndescs > 0);
 #endif
 }
 

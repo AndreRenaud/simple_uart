@@ -434,8 +434,7 @@ static bool readfile(const char *dir, const char *filename, char *result, size_t
     result[0] = '\0';
     if ((fp = fopen(path, "rb")) != NULL) {
         len = fread(result, 1, max_result_len - 1, fp);
-        if (len) {
-            result[len] = '\0';
+        if (len > 0) {
             while (isspace(result[len - 1]))
                 len--;
             result[len] = '\0';
