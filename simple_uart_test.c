@@ -265,9 +265,6 @@ void test_list(void)
     char **names = NULL;
     ssize_t count;
 
-    /* Test with loopback devices */
-    pid_t pid = setup_loopback();
-
     count = simple_uart_list(&names);
 
     /* Count should be non-negative and should have the loopback devices or at least
@@ -295,7 +292,6 @@ void test_list(void)
 
     // At least one has to have a description
     TEST_ASSERT(ndescs > 0);
-    shutdown_loopback(pid);
 #endif
 }
 
