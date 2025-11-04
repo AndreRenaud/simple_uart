@@ -753,7 +753,7 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
     // These only work on /dev/ttySx style UARTs
     snprintf(unresolvedPath, sizeof(unresolvedPath), "/sys/class/tty/%s", basename((char *)uart));
     if (readfile(unresolvedPath, "port", chrBuf, sizeof(chrBuf))) {
-        snprintf(description + strlen(description), max_desc_len - strlen(description), "port=%s", chrBuf);
+        snprintf(description + strlen(description), max_desc_len - strlen(description), "port=%s,", chrBuf);
     }
 
 // MacOS
