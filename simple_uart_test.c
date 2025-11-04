@@ -267,12 +267,10 @@ void test_list(void)
 
     count = simple_uart_list(&names);
 
-    /* Count should be non-negative and should have the loopback devices or at least
-     * verify that the list function works without crashing */
+    /* We assume the test machine has at least one serial port */
     TEST_ASSERT(count > 0);
     TEST_ASSERT(names != NULL);
 
-    /* Just verify that we can iterate through the list and free it safely */
     for (ssize_t i = 0; i < count; i++) {
         char description[256];
         TEST_ASSERT(names[i] != NULL);
