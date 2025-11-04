@@ -258,6 +258,31 @@ void test_logfile(void)
     unlink(logfile);
 }
 
+void test_list(void)
+{
+    // Describe only works on Linux/Windows
+#if defined(__linux__) || defined(_WIN32)
+    char **names = NULL;
+    ssize_t count;
+
+    count = simple_uart_list(&names);
+
+    /* We assume the test machine has at least one serial port */
+    TEST_ASSERT(count > 0);
+    TEST_ASSERT(names != NULL);
+
+    for (ssize_t i = 0; i < count; i++) {
+        char description[256];
+        TEST_ASSERT(names[i] != NULL);
+        TEST_ASSERT(strlen(names[i]) > 0);
+        TEST_ASSERT(simple_uart_describe(names[i], description, sizeof(description)) == 0);
+        TEST_ASSERT(strlen(description) > 0);
+        free(names[i]);
+    }
+    free(names);
+#endif
+}
+
 TEST_LIST = {
     {"open", test_open},
     {"loopback", test_loopback},
@@ -265,5 +290,6 @@ TEST_LIST = {
     {"read_line", test_read_line},
     {"read_timeout", test_read_timeout},
     {"logfile", test_logfile},
+    {"list", test_list},
     {NULL, NULL},
 };
