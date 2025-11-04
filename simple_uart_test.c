@@ -271,7 +271,6 @@ void test_list(void)
      * verify that the list function works without crashing */
     TEST_ASSERT(count > 0);
     TEST_ASSERT(names != NULL);
-    int ndescs = 0;
 
     /* Just verify that we can iterate through the list and free it safely */
     for (ssize_t i = 0; i < count; i++) {
