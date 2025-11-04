@@ -258,6 +258,47 @@ void test_logfile(void)
     unlink(logfile);
 }
 
+void test_list(void)
+{
+    // Describe only works on Linux/Windows
+#if defined(__linux__) || defined(_WIN32)
+    char **names = NULL;
+    ssize_t count;
+
+    /* Test with loopback devices */
+    pid_t pid = setup_loopback();
+
+    count = simple_uart_list(&names);
+
+    /* Count should be non-negative and should have the loopback devices or at least
+     * verify that the list function works without crashing */
+    TEST_ASSERT(count > 0);
+    printf("Device count: %zd\n", count);
+
+    TEST_ASSERT(names != NULL);
+    int ndescs = 0;
+
+    /* Just verify that we can iterate through the list and free it safely */
+    for (ssize_t i = 0; i < count; i++) {
+        char description[256];
+        TEST_ASSERT(names[i] != NULL);
+        TEST_ASSERT(strlen(names[i]) > 0);
+        TEST_ASSERT(simple_uart_describe(names[i], description, sizeof(description)) == 0);
+        printf("%zd: name=%s desc=%s\n", i, names[i], description);
+        if (strlen(description) > 0) {
+            ndescs++;
+        }
+
+        free(names[i]);
+    }
+    free(names);
+
+    // At least one has to have a description
+    TEST_ASSERT(ndescs > 0);
+    shutdown_loopback(pid);
+#endif
+}
+
 TEST_LIST = {
     {"open", test_open},
     {"loopback", test_loopback},
@@ -265,5 +306,6 @@ TEST_LIST = {
     {"read_line", test_read_line},
     {"read_timeout", test_read_timeout},
     {"logfile", test_logfile},
+    {"list", test_list},
     {NULL, NULL},
 };
