@@ -1,3 +1,10 @@
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#ifndef PATH_MAX
+#define PATH_MAX MAX_PATH
+#endif /* PATH_MAX */
+#endif /* _MSC_VER */
+
 #define _GNU_SOURCE
 #include <ctype.h>
 #include <errno.h>
@@ -252,8 +259,18 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     } else {
         options.fRtsControl = RTS_CONTROL_DISABLE;
     }
+    // XON/XOFF
+    if (HAS_OPTION('X')) {
+        options.fOutX = TRUE;
+        options.fInX = TRUE;
+    } else {
+        options.fOutX = FALSE;
+        options.fInX = FALSE;
+    }
+
     /* mandatory options */
     options.fBinary = TRUE;
+    options.fDtrControl = FALSE;
     /* assign to port */
     if (!SetCommState(sc->port, &options))
         return win32_errno();
@@ -358,6 +375,11 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
         options.c_cflag |= CRTSCTS;
     else
         options.c_cflag &= ~CRTSCTS;
+
+    /* clear and set software flow control */
+    options.c_iflag &= (tcflag_t) ~(IXON | IXOFF | IXANY);
+    if (HAS_OPTION('X'))
+        options.c_iflag |= IXON | IXOFF;
 
     // raw input mode
     options.c_lflag &= (tcflag_t) ~(ICANON | ECHO | ECHOE | ISIG);
@@ -742,14 +764,14 @@ int simple_uart_describe(const char *uart, char *description, size_t max_desc_le
 int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
 {
     va_list ap;
-    char *buffer;
+    char buffer[PATH_MAX];
     int len;
 
     if (!uart || !logfile)
         return -EINVAL;
 
     va_start(ap, logfile);
-    len = vasprintf(&buffer, logfile, ap);
+    len = vsnprintf(buffer, sizeof(buffer), logfile, ap);
     va_end(ap);
     if (len < 0)
         return -errno;
@@ -760,10 +782,8 @@ int simple_uart_set_logfile(struct simple_uart *uart, const char *logfile, ...)
     uart->logfile = fopen(buffer, "a");
     if (!uart->logfile) {
         int e = -errno;
-        free(buffer);
         return e;
     }
-    free(buffer);
     return 0;
 }
 
