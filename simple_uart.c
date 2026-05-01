@@ -282,11 +282,12 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 #if defined(__linux__) || defined(__APPLE__)
 static int simple_uart_set_config(struct simple_uart *sc, int speed, const char *mode_string) // Linux Port config
 {
-    struct termios options; // Linux options handle
-    speed_t sp = B0;        // Default linux speed
+    speed_t sp = B0;        // Default mac/linux speed
 #ifdef __linux__
+    struct termios2 options; // Linux options handle
     int non_standard = 0;
 #else // __APPLE__ type casting
+    struct termios options; // Mac options handle
     speed_t mac_speed = speed;
 #endif
 
@@ -314,6 +315,11 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     case 3000000: sp = B3000000; break;
     case 3500000: sp = B3500000; break;
     case 4000000: sp = B4000000; break;
+
+    /* These speeds are supported on Linux via termios2, e.g. on FTDI */
+    case 6000000: sp = 6000000; break;
+    case 12000000: sp = 12000000; break;
+
     default: sp = B38400; non_standard = 1;
 #else // __APPLE__ only
     // The IOSSIOSPEED ioctl can be used to set arbitrary baud rates
@@ -327,14 +333,41 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
     }
 #endif
     }
-    /* Accquire current port config */
+
+    /* Acquire current port config */
+#ifdef __linux__
+    if (ioctl(sc->fd, TCGETS2, &options) < 0)
+        return -errno;
+#else
     if (tcgetattr(sc->fd, &options) < 0)
         return -errno;
+#endif
 
+#ifdef __linux__
+    options.c_cflag &= ~CBAUD;
+    if((speed >= 6000000) && (speed <= 12000000))
+    {
+      /* Use the BOTHER/CBAUDEX flag for high speeds */
+      options.c_cflag |= BOTHER;
+      options.c_cflag |= CBAUDEX;
+      options.c_ispeed = sp;
+      options.c_ospeed = sp;
+    }
+    else
+    {
+      /* Normal options */
+      options.c_cflag &= ~BOTHER;
+      options.c_cflag &= ~CBAUDEX;
+      options.c_cflag |= sp;
+      options.c_ispeed = 0;
+      options.c_ospeed = 0;
+    }
+#else
     if (sp != 0) {
         cfsetospeed(&options, sp);
         cfsetispeed(&options, sp);
     }
+#endif
 
     options.c_cflag &= (tcflag_t) ~(HUPCL);
 
@@ -392,9 +425,21 @@ static int simple_uart_set_config(struct simple_uart *sc, int speed, const char 
 
     options.c_cc[VTIME] = 0;
     options.c_cc[VMIN] = 0;
+
+#ifdef __linux__
+    if (ioctl(sc->fd, TCFLSH, TCIOFLUSH) < 0)
+        return -errno;
+#else
     tcflush(sc->fd, TCIOFLUSH);
+#endif
+
+#ifdef __linux__
+    if (ioctl(sc->fd, TCSETS2, &options) < 0)
+        return -errno;
+#else
     if (tcsetattr(sc->fd, TCSANOW, &options) < 0)
         return -errno;
+#endif
 
 #ifdef __linux__
     if (HAS_OPTION('R')) {
@@ -839,17 +884,20 @@ int simple_uart_send_break(struct simple_uart *uart)
     if (!uart)
         return -EINVAL;
 
-#if defined(__linux__) || defined(__APPLE__)
-    tcsendbreak(uart->fd, 1);
-    return 0;
+#ifdef __linux__
+    if (ioctl(uart->fd, TCSBRK, 1) < 0)
+        return -errno;
+#elif defined(__APPLE__)
+    if (tcsendbreak(uart->fd, 1) < 0)
+        return -errno;
 #else
     SetCommBreak(uart->port);
     // Linux doesn't support durations, it is always 4/10 of a second.
     // Replicate that here.
     Sleep(400);
     ClearCommBreak(uart->port);
-    return 0;
 #endif
+    return 0;
 }
 
 #ifdef _WIN32
@@ -938,7 +986,10 @@ int simple_uart_flush(struct simple_uart *uart)
     if (!uart)
         return -EINVAL;
 
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__linux__)
+    if (ioctl(uart->fd, TCFLSH, TCIOFLUSH) < 0)
+        return -errno;
+#elif defined(__APPLE__)
     if (tcdrain(uart->fd) < 0)
         return -errno;
 #else
