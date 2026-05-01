@@ -28,7 +28,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <termios.h>
 #include <unistd.h>
 #else
 #include <windows.h>
@@ -40,11 +39,12 @@
 #endif
 
 #ifdef __linux__
+#include <asm/termbits.h>
 #include <linux/serial.h>
-#include <pty.h>
 #endif
 
 #ifdef __APPLE__
+#include <termios.h>
 #include <IOKit/serial/ioss.h>
 #endif
 
