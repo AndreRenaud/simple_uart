@@ -204,7 +204,17 @@ Set the state of a hardware pin of the UART. See *simple_uart_get_pin*
 ```c
 int simple_uart_flush(struct simple_uart *uart);
 ```
-Ensure all outstanding data has been written to the wire and is not being buffered by the OS.
+Discard all pending input and output data buffered by the OS without waiting for it to be transmitted.
+
+
+### Drain
+```c
+int simple_uart_drain(struct simple_uart *uart);
+```
+Block until all pending output data has been transmitted. Unlike *simple_uart_flush*, this does not discard data — it waits for the transmit buffer to empty.
+
+#### Return:
+*0* on success. *< 0* on failure.
 
 
 ### Break

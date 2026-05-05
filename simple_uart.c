@@ -986,15 +986,27 @@ int simple_uart_flush(struct simple_uart *uart)
     if (!uart)
         return -EINVAL;
 
-#if defined(__linux__)
-    if (ioctl(uart->fd, TCFLSH, TCIOFLUSH) < 0)
-        return -errno;
-#elif defined(__APPLE__)
-    if (tcdrain(uart->fd) < 0)
+#ifndef _WIN32
+    if (tcflush(uart->fd, TCIOFLUSH) < 0)
         return -errno;
 #else
     DWORD purge_all = PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR;
     if(!PurgeComm(uart->port, purge_all))
+        return win32_errno();
+#endif
+    return 0;
+}
+
+int simple_uart_drain(struct simple_uart *uart)
+{
+    if (!uart)
+        return -EINVAL;
+
+#ifndef _WIN32
+    if (tcdrain(uart->fd) < 0)
+        return -errno;
+#else
+    if (!FlushFileBuffers(uart->port))
         return win32_errno();
 #endif
     return 0;

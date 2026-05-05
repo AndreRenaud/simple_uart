@@ -77,9 +77,14 @@ int simple_uart_get_pin(struct simple_uart *uart, int pin);
 int simple_uart_set_pin(struct simple_uart *uart, int pin, bool high);
 
 /**
- * Make sure all write data has been flushed out of the UART
+ * Make sure all read/write data has been flushed (discarded) out of the UART
  */
 int simple_uart_flush(struct simple_uart *uart);
+
+/**
+ * Block until all pending output has been transmitted
+ */
+int simple_uart_drain(struct simple_uart *uart);
 
 /**
  * Send the break symbol
